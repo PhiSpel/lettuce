@@ -11,6 +11,7 @@ from timeit import default_timer as timer
 from lettuce import LettuceException, get_default_moment_transform, BGKInitialization, ExperimentalWarning, torch_gradient, StandardStreaming
 from lettuce.util import pressure_poisson
 from lettuce.native_generator import Generator
+from lettuce import Lattice, Collision, Streaming
 
 from copy import deepcopy
 
@@ -67,8 +68,8 @@ class Simulation:
             if hasattr(boundary, "make_no_stream_mask"):
                 no_streaming_mask = no_streaming_mask | boundary.make_no_stream_mask(self.f.shape)
 
-        self.collision.no_collision_mask = no_collision_mask.to(torch.uint8)
-        self.streaming.no_streaming_mask = no_streaming_mask.to(torch.uint8)
+        self.collision.no_collision_mask = no_collision_mask.to(torch.bool)
+        self.streaming.no_streaming_mask = no_streaming_mask.to(torch.bool)
 
         # default collide and stream
         self.collide_and_stream = Simulation.collide_and_stream_

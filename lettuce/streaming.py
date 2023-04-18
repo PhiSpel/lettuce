@@ -8,8 +8,9 @@ import numpy as np
 from typing import Optional
 from lettuce.base import LatticeBase
 from lettuce.native_generator import NativeNoStreaming, NativeStandardStreaming
+from lettuce import Lattice
 
-__all__ = ["StandardStreaming", "NoStreaming"]
+__all__ = ["Streaming", "StandardStreaming", "NoStreaming"]
 
 
 class Streaming(LatticeBase):

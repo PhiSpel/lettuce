@@ -10,9 +10,10 @@ from lettuce.base import LatticeBase
 from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.util import LettuceException
 from lettuce.native_generator import NativeNoCollision, NativeBGKCollision
+from lettuce import Lattice
 
 __all__ = [
-    "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision", "RegularizedCollision",
+    "Collision", "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision", "RegularizedCollision",
     "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "NoCollision"
 ]
 
@@ -111,7 +112,7 @@ class MRTCollision(Collision):
         return f
 
 
-class TRTCollision:
+class TRTCollision(Collision):
     """Two relaxation time collision model - standard implementation (cf. Krüger 2017)
         """
 
