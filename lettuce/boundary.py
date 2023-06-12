@@ -38,6 +38,22 @@ class BounceBackBoundary:
         return self.mask
 
 
+class SlipBounceBackBoundary:
+    """Slippery Fullway Bounce-Back Boundary"""
+
+    def __init__(self, mask, lattice, direction):
+        self.mask = lattice.convert_to_tensor(mask)
+        self.lattice = lattice
+
+    def __call__(self, f):
+        f = torch.where(self.mask, f[self.lattice.stencil.opposite], f)
+        return f
+
+    def make_no_collision_mask(self, f_shape):
+        assert self.mask.shape == f_shape[1:]
+        return self.mask
+
+
 class EquilibriumBoundaryPU:
     """Sets distributions on this boundary to equilibrium with predefined velocity and pressure.
     Note that this behavior is generally not compatible with the Navier-Stokes equations.
