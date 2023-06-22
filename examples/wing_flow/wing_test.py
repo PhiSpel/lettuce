@@ -111,12 +111,13 @@ res_dict = {
 # Re -> vchar -> nmax
 
 ### LETTUCE PARAMETERS ###
-if args["no_cuda"]:
+if False: # args["no_cuda"]:
     lattice = lt.Lattice(lt.D2Q9, torch.device("cpu"), use_native=False)
     print("Not using CUDA, but CPU.")
 else:
     lattice = lt.Lattice(lt.D2Q9, torch.device("cuda"), use_native=False)
     print("Using CUDA.")
+
 
 def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny):
     if file_name is None:
