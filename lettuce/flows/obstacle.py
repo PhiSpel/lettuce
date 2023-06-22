@@ -64,12 +64,12 @@ class Obstacle:
         self._mask = m.astype(bool)
 
     def initial_solution(self, x):
-        #p = np.zeros_like(x[0], dtype=float)[None, ...]
-        #u_char = self.units.characteristic_velocity_pu * self._unit_vector()
-        #u_char = append_axes(u_char, self.units.lattice.D)
-        #u = (1 - self.mask) * u_char * 0
         p = np.zeros_like(x[0], dtype=float)[None, ...]
-        u = np.zeros_like(x[0], dtype=float)
+        u_char = self.units.characteristic_velocity_pu * self._unit_vector()
+        u_char = append_axes(u_char, self.units.lattice.D)
+        u = (1 - self.mask) * u_char * 0
+        # p = np.zeros_like(x[0], dtype=float)[None, ...]
+        # u = np.zeros_like(x[0], dtype=float)
         return p, u
 
     @property
