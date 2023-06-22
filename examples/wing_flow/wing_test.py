@@ -1,16 +1,30 @@
+import os
+
 import lettuce as lt
 import torch
 import numpy as np
 from scipy import interpolate
 from matplotlib import pyplot as plt
 from time import time
-from maskfromcsv import mask_from_csv
+from maskfromcsv import Naca
 import sys
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-output = sys.argv[0]
+##################################################
+#ARGUMENT PARSING
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument("--outputdir", default=os.getcwd()+"/data", type=str, help="directory for output data")
+parser.add_argument("--n_steps", default=50000, type=int, help="number of steps to simulate, overwritten by t_target, if t_target is >0")
+parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
+parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
+parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
+parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
+parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 
-Ma = 0.1                   ## The speed of streaming
-n_stream = 10              ## air should have passed the wing length n_stream-times
+args = vars(parser.parse_args())
+
+outputdir = args["outputdir"]
+Ma = args["Ma"]                   ## The speed of streaming
 
 ### APPLICATION ###
 # turbine_diameter =
@@ -42,9 +56,21 @@ visc_dyn = 2.791e-7*temp**0.7355 ## dynamic viscosity of air
 visc_kin = visc_dyn/rho     ## kinematic viscosity of air
 Re = vchar*lchar/visc_kin   ## The type of streaming around the foil. Small (1.5m) 8e3,medium (3-5m) 2e5, large (>5m-150m) up to 5e6
 
+### load setup to args
+args["domain_length_x"] = domain_length_x
+args["x_wing_nose"] = x_wing_nose
+args["x_wing_tail"] = x_wing_tail
+args["chord_length"] = chord_length
+args["vchar"] = vchar
+args["wing_length"] = wing_length
+
 # number of steps depends on Mach number and resolution (?)
 #nmax = 100000
-t_max = wing_length/vchar*n_stream   ## simulate tmax-seconds
+if args["t_target"] is None:
+    if args["n_stream"] is None:
+        nmax = args["n_steps"]
+    else:
+        args["t_target"] = wing_length/vchar*args["n_stream"]   ## simulate tmax-seconds
 
 ### SIMULATION PARAMETERS ##
 # how often to report (every n simulation steps)
@@ -86,29 +112,31 @@ res_dict = {
 # Re -> vchar -> nmax
 
 ### LETTUCE PARAMETERS ###
-lattice = lt.Lattice(lt.D2Q9, torch.device("cuda:0"), use_native=False)
+lattice = lt.Lattice(lt.D2Q9, torch.device("cpu"), use_native=False)
 
-class Naca(lt.Obstacle):
-    def __init__(self, wing_name, re_number, shape):
-        super(Naca, self).__init__(shape, reynolds_number=re_number, mach_number=Ma,lattice=lattice,domain_length_x=domain_length_x,char_length=chord_length,char_velocity=vchar)
-        x, y = self.grid
-        self.mask = mask_from_csv(x, y, wing_name)
-
-def setup_simulation(wing_name, file_name=None, tmax=t_max, re_number=Re, n_x=nx, n_y=ny):
+def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny):
     if file_name is None:
         filename_base = outputdir+wing_name
     else:
         filename_base = outputdir+file_name
     shape = (n_x, n_y)
     print('shape = ', shape)
-    flow = Naca(wing_name, re_number, shape)
-    simulation = lt.Simulation(flow, lattice, lt.KBCCollision2D(lattice, flow.units.relaxation_parameter_lu),
-                        lt.StandardStreaming(lattice))
-    nmax = flow.units.convert_time_to_lu(tmax)
+    flow = Naca(wing_name, shape, lattice, **args)
+    tau = flow.units.relaxation_parameter_lu
+    # collision operator
+    if args["collision"] == "kbc": collision = lt.KBCCollision2D(lattice, tau)
+    elif args["collision"] == "reg": collision = lt.RegularizedCollision(lattice, tau)
+    elif args["collision"] == "bgk": collision = lt.BGKCollision(lattice, tau)
+    simulation = lt.Simulation(flow, lattice, collision, lt.StandardStreaming(lattice))
+    if args["t_target"] is not None:
+        nmax = flow.units.convert_time_to_lu(args["t_target"])
+    else:
+        nmax = args["n_steps"]
+        args["t_target"] = flow.units.convert_velocity_to_pu(args["n_steps"])
     print("Doing up to ", "{:.2e}".format(nmax), " steps.")
     print("Key paramters: run name:", file_name, ", chord length", chord_length, "[m], Re", "{:.2e}".format(re_number), "[1]")
     print("I will record every", nreport, "-th step, print every", nconsole, "-th step, and plot every", nconsole*nplot, "-th step.\n",
-          "1000 steps correspond to", tmax/nmax*1e3, "seconds.\n")
+          "1000 steps correspond to", args["t_target"]/nmax*1e3, "seconds.\n")
 
     # set up reporters
     Energy = lt.IncompressibleKineticEnergy(lattice, flow)
@@ -159,7 +187,7 @@ setup = {}
 for ny in res_dict:
     name = 'NACA-0012-lowAOA'
     run_name = name+'_ny'+str(ny)
-    setup[run_name] = setup_simulation(name, run_name, tmax=wing_length/vchar*n_stream, re_number=Re, n_x=4*ny, n_y=ny)
+    setup[run_name] = setup_simulation(name, run_name, re_number=Re, n_x=4*ny, n_y=ny)
 # do comparison of wings and reynolds numbers
 # for name in wing_dict:
 #     for Re in re_dict:
