@@ -33,7 +33,8 @@ class Naca(Obstacle):
         n_wing_height = int(ny1 // 2)  # wing sits at middle of domain length
 
         # read wing data from http://airfoiltools.com/plotter/index
-        surface_data = np.genfromtxt(os.getcwd() + '/' + wing_name + '.csv', delimiter=",")[9:, :]
+        surface_data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + '/' + wing_name + '.csv',
+                                     delimiter=",")[9:, :]
         surface_data = surface_data[:np.min(np.where(np.isnan(surface_data)[:, 1])), :]
         zero_row = np.where(surface_data[:, 0] == 0)[0][0]
         x_data_top, y_data_top = surface_data[:zero_row, :].transpose()
