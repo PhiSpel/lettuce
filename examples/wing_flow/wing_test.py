@@ -20,12 +20,14 @@ parser.add_argument("--t_target", default=None, type=float, help="time in PU to 
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
+parser.add_argument("--no-cuda", default=True, type=float, help="Only use CPU. Set False to use Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 
 args = vars(parser.parse_args())
 
 outputdir = args["outputdir"]
 Ma = args["Ma"]  ## The speed of streaming
+no_cuda = args["no-cuda"]
 
 ### APPLICATION ###
 # turbine_diameter =
@@ -113,8 +115,10 @@ res_dict = {
 # Re -> vchar -> nmax
 
 ### LETTUCE PARAMETERS ###
-lattice = lt.Lattice(lt.D2Q9, torch.device("cpu"), use_native=False)
-
+if no_cuda:
+    lattice = lt.Lattice(lt.D2Q9, torch.device("cpu"), use_native=False)
+else:
+    lattice = lt.Lattice(lt.D2Q9, torch.device("cuda"), use_native=False)
 
 def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny):
     if file_name is None:
