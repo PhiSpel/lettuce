@@ -7,7 +7,7 @@ from time import time
 from maskfromcsv import mask_from_csv
 import sys
 
-output = "data_" + sys.argv[1] + '/'
+output = sys.argv[0]
 
 Ma = 0.1                   ## The speed of streaming
 n_stream = 10              ## air should have passed the wing length n_stream-times
