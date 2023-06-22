@@ -120,7 +120,6 @@ def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny):
     else:
         filename_base = outputdir+file_name
     shape = (n_x, n_y)
-    print('shape = ', shape)
     flow = Naca(wing_name, shape, lattice, **args)
     tau = flow.units.relaxation_parameter_lu
     # collision operator
