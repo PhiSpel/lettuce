@@ -8,15 +8,15 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 #########################
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("--outputdir", default=os.getcwd() + "/data", type=str, help="directory for output data")
-parser.add_argument("--n_steps", default=50000, type=int, help="number of steps to simulate, overwritten by t_target")
+parser.add_argument("--outputdir", default=os.getcwd() + "/data/", type=str, help="directory for output data")
+parser.add_argument("--n_steps", default=5000, type=int, help="number of steps to simulate, overwritten by t_target")
 parser.add_argument("--nmax", default=50000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
-parser.add_argument("--nreport", default=10000, type=int, help="vtk report every n steps")
+parser.add_argument("--nreport", default=5000, type=int, help="vtk report every n steps")
 parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
-parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
+parser.add_argument("--Re", default=None, type=float, help="Reynolds number")
 parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
@@ -53,10 +53,11 @@ n_wing_tail = int(x_wing_tail // dx)  # first grid point with wing
 ## FLOW CHARACTERISTICS ##
 # Re = 5e6
 lchar = wing_length  # characteristic length in pu is obstacle length
-temp = tempC + 273.15  # temperature in Kelvin
-visc_dyn = 2.791e-7 * temp ** 0.7355  # dynamic viscosity of air
-visc_kin = visc_dyn / rho  # kinematic viscosity of air
-Re = vchar * lchar / visc_kin  # The type of streaming around the foil. Small (1.5m) 8e3,medium (3-5m) 2e5, large (>5m-150m) up to 5e6
+if args["Re"] is None:
+    temp = tempC + 273.15  # temperature in Kelvin
+    visc_dyn = 2.791e-7 * temp ** 0.7355  # dynamic viscosity of air
+    visc_kin = visc_dyn / rho  # kinematic viscosity of air
+    args["Re"] = vchar * lchar / visc_kin  # The type of streaming around the foil. Small (1.5m) 8e3,medium (3-5m) 2e5, large (>5m-150m) up to 5e6
 
 ## load setup to args
 args["domain_length_x"] = domain_length_x
@@ -95,7 +96,7 @@ def setup_simulation(**args):
     Re = args["Re"]
     wing_name = args["name"]
 
-    file_name = name + '_ny' + str(ny) + '_Re' + str(Re) + '_Ma' + str(Ma)
+    file_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + '_Ma' + str(Ma)
     filename_base = outputdir + file_name
     shape = (nx, ny)
     flow = Naca(wing_name, shape, lattice, **args)
@@ -114,11 +115,11 @@ def setup_simulation(**args):
     if t_target is not None:
         n_steps = flow.units.convert_time_to_lu(t_target)
     t_target = flow.units.convert_velocity_to_pu(n_steps)
-    print("Doing up to ", "{:.2e}".format(n_steps), " steps.")
+    print("Doing up to ", "{:.0e}".format(n_steps), " steps.")
     print("Key paramters: run name:", file_name, ", chord length", chord_length, "[m], Re", "{:.2e}".format(Re),
           "[1]")
     print("I will record every", nreport, "-th step, print every", ntest, "-th step\n",
-          "1000 steps correspond to", t_target / n_steps * 1e3, "seconds.\n")
+          "1000 steps correspond to", t_target / n_steps * 1e3, "seconds.\nReports are in ", filename_base)
 
     # set up reporters
     energy = lt.IncompressibleKineticEnergy(lattice, flow)
@@ -154,7 +155,7 @@ def run_n_plot(simulation, energy, **args):
     return
 
 
-run_name = name + '_ny' + str(ny) + '_Re' + str(Re) + '_Ma' + str(Ma)
+run_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + "_Ma' + str(Ma)"
 t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
