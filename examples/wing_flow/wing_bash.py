@@ -155,7 +155,7 @@ def run_n_plot(simulation, energy, **args):
     return
 
 
-run_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + "_Ma' + str(Ma)"
+run_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + "_Ma" + str(Ma)
 t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
