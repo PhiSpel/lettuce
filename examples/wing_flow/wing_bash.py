@@ -16,7 +16,7 @@ parser.add_argument("--n_stream", default=None, type=float, help="time in PU to 
 parser.add_argument("--nreport", default=5000, type=int, help="vtk report every n steps")
 parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
-parser.add_argument("--Re", default=None, type=float, help="Reynolds number")
+parser.add_argument("--Re", default=2000, type=float, help="Reynolds number, set 0 to calculate")
 parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
@@ -53,7 +53,7 @@ n_wing_tail = int(x_wing_tail // dx)  # first grid point with wing
 ## FLOW CHARACTERISTICS ##
 # Re = 5e6
 lchar = wing_length  # characteristic length in pu is obstacle length
-if args["Re"] is None:
+if args["Re"] == 0:
     temp = tempC + 273.15  # temperature in Kelvin
     visc_dyn = 2.791e-7 * temp ** 0.7355  # dynamic viscosity of air
     visc_kin = visc_dyn / rho  # kinematic viscosity of air
