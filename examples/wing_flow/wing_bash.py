@@ -26,7 +26,6 @@ parser.add_argument("--nx", default=None, type=int, help="lattice nodes in x-dir
 args = vars(parser.parse_args())
 
 Ma = args["Ma"]  # The speed of streaming
-name = args["name"]
 
 ## APPLICATION ##
 # turbine_diameter =
@@ -92,7 +91,7 @@ def setup_simulation(**args):
     Re = args["Re"]
     wing_name = args["name"]
 
-    file_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + '_Ma' + str(Ma)
+    file_name = wing_name + '_ny' + str(ny) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(Ma)
     args["filename_base"] = outputdir + file_name
     shape = (nx, ny)
     flow = Naca(wing_name, shape, lattice, **args)
@@ -151,7 +150,7 @@ def run_n_plot(simulation, energy, **args):
     return
 
 
-run_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + "_Ma" + str(Ma)
+run_name = args["name"] + '_ny' + str(ny) + "_Re{:.1e}".format(args["Re"]) + "_Ma" + str(Ma)
 t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
