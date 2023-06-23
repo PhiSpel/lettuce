@@ -40,13 +40,12 @@ dt_pu = 1e-5  # this should allow up to 25,000 Hz
 ## DOMAIN ##
 ny = args["ny"]  # number of lattice nodes in y-direction
 nx = args["nx"]  # number of lattice nodes in x-direction
-if nx is None:
-    nx = 4*ny
-# shape = (nx, ny)            # domain shape
-x_wing_nose = 1  # physical space before wing
-x_wing_tail = 4  # physical space behind wing
+x_wing_nose = 2  # physical space before wing
+x_wing_tail = 5  # physical space behind wing
 chord_length = wing_length  # physical length of wing
 domain_length_x = x_wing_nose + wing_length + x_wing_tail
+if nx is None:
+    nx = int(domain_length_x*ny)
 dx = domain_length_x / nx  # i.e. resolution
 n_wing_nose = int(x_wing_nose // dx)  # first grid point with wing
 n_wing_tail = int(x_wing_tail // dx)  # first grid point with wing
