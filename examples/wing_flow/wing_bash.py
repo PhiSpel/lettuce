@@ -17,7 +17,7 @@ parser.add_argument("--nreport", default=5000, type=int, help="vtk report every 
 parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number, set 0 to calculate")
-parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
+parser.add_argument("--no_cuda", default=0, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
 parser.add_argument("--ny", default=50, type=int, help="lattice nodes in y-direction")
