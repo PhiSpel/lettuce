@@ -117,11 +117,11 @@ def setup_simulation(**args):
     if t_target is not None:
         n_steps = flow.units.convert_time_to_lu(t_target)
     t_target = flow.units.convert_velocity_to_pu(n_steps)
-    print("Doing up to ", "{:.0e}".format(n_steps), " steps.")
-    print("Key paramters of ", file_name, ": chord length", chord_length, "[m], Re {:.2e}".format(Re),
-          "[1], Ma {:1f}".format(Ma))
-    print("I will record every", nreport, "-th step, print every", ntest, "-th step\n",
-          "1000 steps correspond to {:.2f}".format(t_target / n_steps * 1e3), "seconds. Reports are in ", args["filename_base"])
+    print("Doing up to {:.0e}".format(n_steps), " steps.")
+    print("Key paramters of ", file_name, ": {:.0e}".format(n_steps), "steps, chord length", chord_length, "[m], Re {:.2e}".format(Re),
+          "[1], Ma {:2.f}".format(Ma))
+    print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
+          "100 steps correspond to {:.2f}".format(t_target / n_steps * 1e2), "seconds.\nReports are in ", args["filename_base"])
 
     # set up reporters
     energy = lt.IncompressibleKineticEnergy(lattice, flow)

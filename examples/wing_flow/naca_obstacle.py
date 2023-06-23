@@ -18,8 +18,8 @@ class Naca(Obstacle):
         args["filename_base"]: str
 
         self.filename_base = args["filename_base"]
-        self.t_pre = args["wing_length"] / args["vchar"] * 5
-        self.Re_pre = 5000
+        self.t_pre = args["wing_length"] / args["vchar"] * 10
+        self.Re_pre = 1000
         self.Ma_pre = 0.1
 
         super(Naca, self).__init__(shape, reynolds_number=args["Re"], mach_number=args["Ma"],lattice=lattice,
@@ -35,13 +35,13 @@ class Naca(Obstacle):
 
     def initial_solution(self, x):
         # run a bit with low Re
-        print('Doing ', self.n_pre, ' steps with Re = ', self.Re_pre, ' before actual run.')
+        print('Doing', self.n_pre, 'steps with Re =', self.Re_pre, 'before actual run. ', end="")
         collision = lt.RegularizedCollision(self.lattice, self.units.relaxation_parameter_lu)
         simulation = lt.Simulation(self.pre_flow, self.lattice, collision, lt.StandardStreaming(self.lattice))
         print("Pre-time in pu: {:.4f}".format(self.pre_flow.units.convert_time_to_pu(self.n_pre)), "s")
         simulation.initialize_f_neq()
         simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=self.n_pre,
-                                                   filename_base=self.filename_base))
+                                                   filename_base=self.filename_base+'pre'))
         simulation.step(self.n_pre)
         p = simulation.flow.units.convert_density_lu_to_pressure_pu(simulation.lattice.rho(simulation.f))
         u = self.pre_flow.units.convert_velocity_to_pu(self.lattice.u(simulation.f))
