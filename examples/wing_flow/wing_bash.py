@@ -13,12 +13,12 @@ parser.add_argument("--n_steps", default=5000, type=int, help="number of steps t
 parser.add_argument("--nmax", default=50000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
-parser.add_argument("--nreport", default=5000, type=int, help="vtk report every n steps")
-parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
+parser.add_argument("--nreport", default=500, type=int, help="vtk report every n steps")
+parser.add_argument("--ntest", default=1000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number, set 0 to calculate")
 parser.add_argument("--no_cuda", default=0, type=bool, help="Set False to use CPU instead of Cuda")
-parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
+parser.add_argument("--collision", default="kbc", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
 parser.add_argument("--ny", default=50, type=int, help="lattice nodes in y-direction")
 parser.add_argument("--nx", default=None, type=int, help="lattice nodes in x-direction")
@@ -130,6 +130,10 @@ def run_n_plot(simulation, energy, **args):
 
     # initialize simulation
     simulation.initialize_f_neq()
+    energy_test = energy(simulation.f).mean().item()
+    if not energy_test == energy_test:
+        print("Pre-run crashed!")
+        return
     if test_iterations:
         mlups = 0
         it = 0
@@ -138,9 +142,9 @@ def run_n_plot(simulation, energy, **args):
             i += 1
             it += args["ntest"]
             mlups += simulation.step(args["ntest"])
-            energy_new = energy(simulation.f).mean().item()
+            energy_test = energy(simulation.f).mean().item()
             # print("avg MLUPS: ", mlups / (i + 1))
-            if not energy_new == energy_new:
+            if not energy_test == energy_test:
                 print("CRASHED!")
                 break
     else:

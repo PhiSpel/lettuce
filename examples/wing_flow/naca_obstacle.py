@@ -18,33 +18,40 @@ class Naca(Obstacle):
         args["filename_base"]: str
 
         self.filename_base = args["filename_base"]
-        self.t_pre = args["wing_length"] / args["vchar"] * 20
-        self.Re_pre = 400
+        self.t_pre = args["wing_length"] / args["vchar"] * 15
+        self.Re_pre = 1000
         self.Ma_pre = 0.1
 
-        super(Naca, self).__init__(shape, reynolds_number=args["Re"], mach_number=args["Ma"],lattice=lattice,
+        self.lattice = lattice
+        self.pre_flow = Obstacle(shape, reynolds_number=self.Re_pre, mach_number=self.Ma_pre, lattice=self.lattice,
+                                 domain_length_x=args["domain_length_x"])
+        self.n_pre = int(self.pre_flow.units.convert_time_to_lu(self.t_pre))
+        self.wing_name = wing_name
+        self.args = args
+
+        super(Naca, self).__init__(shape, reynolds_number=args["Re"], mach_number=args["Ma"], lattice=lattice,
                                    domain_length_x=args["domain_length_x"], char_length=args["chord_length"],
                                    char_velocity=args["vchar"])
         x, y = self.grid
         self.mask = self.mask_from_csv(x, y, wing_name, **args)
-        self.lattice = lattice
-        self.pre_flow = Obstacle(shape, reynolds_number=self.Re_pre, mach_number=self.Ma_pre, lattice=self.lattice,
-                                 domain_length_x=args["domain_length_x"])
-        self.pre_flow.mask = self.mask
-        self.n_pre = int(self.pre_flow.units.convert_time_to_lu(self.t_pre))
 
     def initial_solution(self, x):
         # run a bit with low Re
         print('Doing', self.n_pre, 'steps with Re =', self.Re_pre, 'before actual run. ', end="")
-        collision = lt.RegularizedCollision(self.lattice, self.units.relaxation_parameter_lu)
+        x, y = self.grid
+        self.pre_flow.mask = self.mask_from_csv(x, y, self.wing_name, **self.args)
+        collision = lt.KBCCollision2D(self.lattice, self.units.relaxation_parameter_lu)
         simulation = lt.Simulation(self.pre_flow, self.lattice, collision, lt.StandardStreaming(self.lattice))
         print("Pre-time in pu: {:.4f}".format(self.pre_flow.units.convert_time_to_pu(self.n_pre)), "s")
         simulation.initialize_f_neq()
-        simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=self.n_pre,
+        simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=10, #self.n_pre
                                                    filename_base=self.filename_base+'pre'))
         simulation.step(self.n_pre)
         p = simulation.flow.units.convert_density_lu_to_pressure_pu(simulation.lattice.rho(simulation.f))
-        u = self.pre_flow.units.convert_velocity_to_pu(self.lattice.u(simulation.f))
+        u = simulation.flow.units.convert_velocity_to_pu(self.lattice.u(simulation.f))
+        # print(simulation.flow.units.reynolds_number)
+        # print(p.mean().item())
+        # print(u.mean().item())
         return p, u
 
     def mask_from_csv(self, x, y, wing_name, **args):
@@ -101,3 +108,13 @@ class Naca(Obstacle):
         bool_mask = (y < y_data_top_mapped) & (y > y_data_bottom_mapped)
         return bool_mask
 
+    @property
+    def boundaries(self):
+        return [
+            lt.EquilibriumBoundaryPU(
+                np.abs(self.grid[0]) < 1e-6, self.units.lattice, self.units,
+                self.units.characteristic_velocity_pu * self._unit_vector()
+            ),
+            lt.EquilibriumOutletP(self.units.lattice, self._unit_vector().tolist()),
+            lt.BounceBackBoundary(self.mask, self.units.lattice)
+        ]
