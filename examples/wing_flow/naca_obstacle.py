@@ -18,7 +18,7 @@ class Naca(Obstacle):
         args["filename_base"]: str
 
         self.filename_base = args["filename_base"]
-        self.t_pre = args["wing_length"] / args["vchar"] * 10
+        self.t_pre = args["wing_length"] / args["vchar"] * 50
         self.Re_pre = 1000
         self.Ma_pre = 0.1
 

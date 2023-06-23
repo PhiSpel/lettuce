@@ -73,12 +73,6 @@ args["wing_length"] = wing_length
 # nmax = 100000
 if args["t_target"] is None and not args["n_stream"] is None:
     args["t_target"] = wing_length / vchar * args["n_stream"]  # simulate tmax-seconds
-
-## SIMULATION PARAMETERS #
-# how often to report (every n simulation steps)
-nreport = args["nreport"]
-# how often to test for nans (every n simulation steps)
-ntest = args["ntest"]
 # test for convergence and crash
 test_iterations = True
 
@@ -117,18 +111,18 @@ def setup_simulation(**args):
     if t_target is not None:
         n_steps = flow.units.convert_time_to_lu(t_target)
     t_target = flow.units.convert_velocity_to_pu(n_steps)
-    print("Doing up to {:.0e}".format(n_steps), " steps.")
-    print("Key paramters of ", file_name, ": {:.0e}".format(n_steps), "steps, chord length", chord_length, "[m], Re {:.2e}".format(Re),
-          "[1], Ma {:.2f}".format(Ma))
-    print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
+    # print("Doing up to {:.0e}".format(n_steps), " steps.")
+    print("Key paramters of ", file_name, ": {:.0e}".format(n_steps), "steps, chord length", chord_length,
+          "[m], Re {:.2e}".format(Re), "[1], Ma {:.2f}".format(Ma))
+    print("I will record every", args["nreport"], "-th step, print every", args["ntest"], "-th step. ",
           "100 steps correspond to {:.2f}".format(t_target / n_steps * 1e2), "seconds.\nReports are in ", args["filename_base"])
 
     # set up reporters
     energy = lt.IncompressibleKineticEnergy(lattice, flow)
     # energy_reporter_internal = lt.ObservableReporter(energy, interval=nreport, out=None)
     # simulation.reporters.append(energy_reporter_internal)
-    simulation.reporters.append(lt.ObservableReporter(energy, interval=ntest))  # print energy
-    simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=nreport, filename_base=args["filename_base"]))
+    simulation.reporters.append(lt.ObservableReporter(energy, interval=args["ntest"]))  # print energy
+    simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=args["nreport"], filename_base=args["filename_base"]))
     return simulation, energy, n_steps
 
 
@@ -144,8 +138,8 @@ def run_n_plot(simulation, energy, **args):
         i = 0
         while it <= nmax:
             i += 1
-            it += ntest
-            mlups += simulation.step(ntest)
+            it += args["ntest"]
+            mlups += simulation.step(args["ntest"])
             energy_new = energy(simulation.f).mean().item()
             # print("avg MLUPS: ", mlups / (i + 1))
             if not energy_new == energy_new:
