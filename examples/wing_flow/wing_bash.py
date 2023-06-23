@@ -119,7 +119,7 @@ def setup_simulation(**args):
     t_target = flow.units.convert_velocity_to_pu(n_steps)
     print("Doing up to {:.0e}".format(n_steps), " steps.")
     print("Key paramters of ", file_name, ": {:.0e}".format(n_steps), "steps, chord length", chord_length, "[m], Re {:.2e}".format(Re),
-          "[1], Ma {:2.f}".format(Ma))
+          "[1], Ma {:.2f}".format(Ma))
     print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
           "100 steps correspond to {:.2f}".format(t_target / n_steps * 1e2), "seconds.\nReports are in ", args["filename_base"])
 
