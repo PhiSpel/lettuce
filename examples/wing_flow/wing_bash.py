@@ -161,4 +161,4 @@ run_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + "_Ma" + str
 t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
-print(run_name, " took ", time() - t, " s\n")
+print(run_name, " took ", time() - t, " s")
