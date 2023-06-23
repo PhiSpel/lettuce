@@ -9,11 +9,11 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--outputdir", default=os.getcwd() + "/data", type=str, help="directory for output data")
-parser.add_argument("--n_steps", default=5000, type=int, help="number of steps to simulate, overwritten by t_target")
+parser.add_argument("--n_steps", default=50000, type=int, help="number of steps to simulate, overwritten by t_target")
 parser.add_argument("--nmax", default=50000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
-parser.add_argument("--nreport", default=500, type=int, help="vtk report every n steps")
+parser.add_argument("--nreport", default=10000, type=int, help="vtk report every n steps")
 parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
@@ -25,7 +25,6 @@ parser.add_argument("--ny", default=50, type=int, help="lattice nodes in y-direc
 
 args = vars(parser.parse_args())
 
-outputdir = args["outputdir"]
 Ma = args["Ma"]  # The speed of streaming
 name = args["name"]
 
@@ -89,15 +88,16 @@ else:
     print("Using CUDA.")
 
 
-def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny, **args):
+def setup_simulation(**args):
     t_target = args["t_target"]
     n_steps = args["n_steps"]
+    outputdir = args["outputdir"]
+    Re = args["Re"]
+    wing_name = args["name"]
 
-    if file_name is None:
-        filename_base = outputdir + wing_name
-    else:
-        filename_base = outputdir + file_name
-    shape = (n_x, n_y)
+    file_name = name + '_ny' + str(ny) + '_Re' + str(Re) + '_Ma' + str(Ma)
+    filename_base = outputdir + file_name
+    shape = (nx, ny)
     flow = Naca(wing_name, shape, lattice, **args)
     tau = flow.units.relaxation_parameter_lu
     # collision operator
@@ -113,9 +113,9 @@ def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny, **
     simulation = lt.Simulation(flow, lattice, collision, lt.StandardStreaming(lattice))
     if t_target is not None:
         n_steps = flow.units.convert_time_to_lu(t_target)
-        t_target = flow.units.convert_velocity_to_pu(n_steps)
+    t_target = flow.units.convert_velocity_to_pu(n_steps)
     print("Doing up to ", "{:.2e}".format(n_steps), " steps.")
-    print("Key paramters: run name:", file_name, ", chord length", chord_length, "[m], Re", "{:.2e}".format(re_number),
+    print("Key paramters: run name:", file_name, ", chord length", chord_length, "[m], Re", "{:.2e}".format(Re),
           "[1]")
     print("I will record every", nreport, "-th step, print every", ntest, "-th step\n",
           "1000 steps correspond to", t_target / n_steps * 1e3, "seconds.\n")
@@ -156,6 +156,6 @@ def run_n_plot(simulation, energy, **args):
 
 run_name = name + '_ny' + str(ny) + '_Re' + str(Re) + '_Ma' + str(Ma)
 t = time()
-sim, ener, args["n_steps"] = setup_simulation(name, run_name, re_number=Re, n_x=4 * ny, n_y=ny)
+sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
 print(run_name, " took ", time() - t, " s\n")
