@@ -20,7 +20,7 @@ parser.add_argument("--t_target", default=None, type=float, help="time in PU to 
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
-parser.add_argument("--no_cuda", default=1, type=bool, help="Only use CPU. Set False to use Cuda")
+parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 
 args = vars(parser.parse_args())
@@ -89,29 +89,8 @@ epsilon = 1e-7
 Re_pre = 1000
 n_pre = 2000  # wing profiles with camber may crash at low Re
 
-wing_dict = {
-    'NACA-63215-highAOA',
-    'NACA-63215-lowAOA',
-    'NACA-63215-noAOA',
-    'NACA-0012-lowAOA',
-    'NACA-0012-noAOA'
-}
-re_dict = {
-    1e3,
-    1e4,
-    1e5,
-    1e6,
-    1e7
-}
-res_dict = {
-    100,
-    300,
-    600
-}
-# Re -> vchar -> nmax
-
 ### LETTUCE PARAMETERS ###
-if False: # args["no_cuda"]:
+if args["no_cuda"] == 1:
     lattice = lt.Lattice(lt.D2Q9, torch.device("cpu"), use_native=False)
     print("Not using CUDA, but CPU.")
 else:
@@ -134,6 +113,9 @@ def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny):
         collision = lt.RegularizedCollision(lattice, tau)
     elif args["collision"] == "bgk":
         collision = lt.BGKCollision(lattice, tau)
+    else:
+        assert ValueError("collision must be set to kbc, reg, or bgk")
+        return
     simulation = lt.Simulation(flow, lattice, collision, lt.StandardStreaming(lattice))
     if args["t_target"] is not None:
         nmax = flow.units.convert_time_to_lu(args["t_target"])
@@ -193,21 +175,48 @@ def run_n_plot(simulation, flow, Energy, nmax):
     return
 
 
-setup = {}
-# do comparison of resolution
-for ny in res_dict:
-    name = 'NACA-0012-lowAOA'
-    run_name = name + '_ny' + str(ny)
-    setup[run_name] = setup_simulation(name, run_name, re_number=Re, n_x=4 * ny, n_y=ny)
-# do comparison of wings and reynolds numbers
-# for name in wing_dict:
-#     for Re in re_dict:
-#         vchar = Re*visc_kin/lchar
-#         run_name = name+'_Re'+"{:.2e}".format(Re)
-#         setup[run_name] = setup_simulation(name, run_name, tmax=wing_length/vchar*n_stream, re_number=Re)
+name = 'NACA-0012-lowAOA'
+run_name = name + '_ny' + str(ny) + '_Re' + str(Re) + '_Ma' + str(Ma)
+t = time()
+sim, flo, Ener, n_max = setup_simulation(name, run_name, re_number=Re, n_x=4 * ny, n_y=ny)
+run_n_plot(sim, flo, Ener, n_max)
+print(run_name, " took ", time() - t, " s\n")
 
-for run_name in setup:
-    t = time()
-    [sim, flo, Ener, n_max] = setup[run_name]
-    run_n_plot(sim, flo, Ener, n_max)
-    print(run_name, " took ", time() - t, " s\n")
+# wing_dict = {
+#     'NACA-63215-highAOA',
+#     'NACA-63215-lowAOA',
+#     'NACA-63215-noAOA',
+#     'NACA-0012-lowAOA',
+#     'NACA-0012-noAOA'
+# }
+# re_dict = {
+#     1e3,
+#     1e4,
+#     1e5,
+#     1e6,
+#     1e7
+# }
+# res_dict = {
+#     100,
+#     300,
+#     600
+# }
+# Re -> vchar -> nmax
+# setup = {}
+# # do comparison of resolution
+# for ny in res_dict:
+#     name = 'NACA-0012-lowAOA'
+#     run_name = name + '_ny' + str(ny)
+#     setup[run_name] = setup_simulation(name, run_name, re_number=Re, n_x=4 * ny, n_y=ny)
+# # do comparison of wings and reynolds numbers
+# # for name in wing_dict:
+# #     for Re in re_dict:
+# #         vchar = Re*visc_kin/lchar
+# #         run_name = name+'_Re'+"{:.2e}".format(Re)
+# #         setup[run_name] = setup_simulation(name, run_name, tmax=wing_length/vchar*n_stream, re_number=Re)
+#
+# for run_name in setup:
+#     t = time()
+#     [sim, flo, Ener, n_max] = setup[run_name]
+#     run_n_plot(sim, flo, Ener, n_max)
+#     print(run_name, " took ", time() - t, " s\n")
