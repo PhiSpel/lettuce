@@ -20,8 +20,8 @@ parser.add_argument("--Re", default=2000, type=float, help="Reynolds number, set
 parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
-parser.add_argument("--nx", default=200, type=int, help="lattice nodes in x-direction")
 parser.add_argument("--ny", default=50, type=int, help="lattice nodes in y-direction")
+parser.add_argument("--nx", default=None, type=int, help="lattice nodes in x-direction")
 
 args = vars(parser.parse_args())
 
@@ -39,8 +39,10 @@ vchar = 5  # usually medium streaming velocity (may also be maximum velocity, ar
 dt_pu = 1e-5  # this should allow up to 25,000 Hz
 
 ## DOMAIN ##
-nx = args["nx"]  # number of lattice nodes in x-direction
 ny = args["ny"]  # number of lattice nodes in y-direction
+nx = args["nx"]  # number of lattice nodes in x-direction
+if nx is None:
+    nx = 4*ny
 # shape = (nx, ny)            # domain shape
 x_wing_nose = 1  # physical space before wing
 x_wing_tail = 4  # physical space behind wing
