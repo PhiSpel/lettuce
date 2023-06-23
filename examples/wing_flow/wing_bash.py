@@ -9,18 +9,19 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--outputdir", default=os.getcwd() + "/data", type=str, help="directory for output data")
-parser.add_argument("--n_steps", default=50000, type=int, help="number of steps to simulate, overwritten by t_target")
+parser.add_argument("--n_steps", default=5000, type=int, help="number of steps to simulate, overwritten by t_target")
+parser.add_argument("--nmax", default=50000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
 parser.add_argument("--n_stream", default=None, type=float, help="time in PU to simulate")
+parser.add_argument("--nreport", default=500, type=int, help="vtk report every n steps")
+parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=2000, type=float, help="Reynolds number")
 parser.add_argument("--no_cuda", default=False, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="bgk", help="collision operator (bgk, kbc, reg)")
-parser.add_argument("--nreport", default=500, type=int, help="vtk report every n steps")
-parser.add_argument("--ntest", default=2000, type=int, help="test for nans every n steps")
 parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
-parser.add_argument("--nx", default=600, type=int, help="lattice nodes in x-direction")
-parser.add_argument("--ny", default=150, type=int, help="lattice nodes in y-direction")
+parser.add_argument("--nx", default=200, type=int, help="lattice nodes in x-direction")
+parser.add_argument("--ny", default=50, type=int, help="lattice nodes in y-direction")
 
 args = vars(parser.parse_args())
 
@@ -40,10 +41,10 @@ dt_pu = 1e-5  # this should allow up to 25,000 Hz
 
 ## DOMAIN ##
 nx = args["nx"]  # number of lattice nodes in x-direction
-ny = 150  # number of lattice nodes in y-direction
+ny = args["ny"]  # number of lattice nodes in y-direction
 # shape = (nx, ny)            # domain shape
 x_wing_nose = 1  # physical space before wing
-x_wing_tail = 3  # physical space behind wing
+x_wing_tail = 4  # physical space behind wing
 chord_length = wing_length  # physical length of wing
 domain_length_x = x_wing_nose + wing_length + x_wing_tail
 dx = domain_length_x / nx  # i.e. resolution
@@ -129,12 +130,18 @@ def setup_simulation(wing_name, file_name=None, re_number=Re, n_x=nx, n_y=ny, **
 
 
 def run_n_plot(simulation, energy, **args):
+    n_steps = args["n_steps"]
+    nmax = args["n_steps"]
+
     # initialize simulation
     simulation.initialize_f_neq()
     if test_iterations:
         mlups = 0
-        iterations = int(args["n_steps"] // ntest)
-        for i in range(iterations):
+        it = 0
+        i = 0
+        while it <= nmax:
+            i += 1
+            it += ntest
             mlups += simulation.step(ntest)
             energy_new = energy(simulation.f).mean().item()
             print("avg MLUPS: ", mlups / (i + 1))
@@ -142,7 +149,7 @@ def run_n_plot(simulation, energy, **args):
                 print("CRASHED!")
                 break
     else:
-        mlups = simulation.step(args["n_steps"])
+        mlups = simulation.step(n_steps)
         print("MLUPS: ", mlups)
     return
 
