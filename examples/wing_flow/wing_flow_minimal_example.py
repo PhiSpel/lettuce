@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 from time import time
-from maskfromcsv import mask_from_csv
+from naca_obstacle import mask_from_csv
 
 t = time()
 

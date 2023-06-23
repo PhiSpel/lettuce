@@ -2,7 +2,7 @@ import os
 import lettuce as lt
 import torch
 from time import time
-from maskfromcsv import Naca
+from naca_obstacle import Naca
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 #########################
@@ -99,7 +99,7 @@ def setup_simulation(**args):
     wing_name = args["name"]
 
     file_name = name + '_ny' + str(ny) + "_Re{:.2e}".format(args["Re"]) + '_Ma' + str(Ma)
-    filename_base = outputdir + file_name
+    args["filename_base"] = outputdir + file_name
     shape = (nx, ny)
     flow = Naca(wing_name, shape, lattice, **args)
     tau = flow.units.relaxation_parameter_lu
@@ -118,17 +118,17 @@ def setup_simulation(**args):
         n_steps = flow.units.convert_time_to_lu(t_target)
     t_target = flow.units.convert_velocity_to_pu(n_steps)
     print("Doing up to ", "{:.0e}".format(n_steps), " steps.")
-    print("Key paramters: run name:", file_name, ", chord length", chord_length, "[m], Re", "{:.2e}".format(Re),
-          "[1]")
+    print("Key paramters of ", file_name, ": chord length", chord_length, "[m], Re {:.2e}".format(Re),
+          "[1], Ma {:1f}".format(Ma))
     print("I will record every", nreport, "-th step, print every", ntest, "-th step\n",
-          "1000 steps correspond to", t_target / n_steps * 1e3, "seconds.\nReports are in ", filename_base)
+          "1000 steps correspond to {:.2f}".format(t_target / n_steps * 1e3), "seconds. Reports are in ", args["filename_base"])
 
     # set up reporters
     energy = lt.IncompressibleKineticEnergy(lattice, flow)
     # energy_reporter_internal = lt.ObservableReporter(energy, interval=nreport, out=None)
     # simulation.reporters.append(energy_reporter_internal)
     simulation.reporters.append(lt.ObservableReporter(energy, interval=ntest))  # print energy
-    simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=nreport, filename_base=filename_base))
+    simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=nreport, filename_base=args["filename_base"]))
     return simulation, energy, n_steps
 
 
@@ -147,7 +147,7 @@ def run_n_plot(simulation, energy, **args):
             it += ntest
             mlups += simulation.step(ntest)
             energy_new = energy(simulation.f).mean().item()
-            print("avg MLUPS: ", mlups / (i + 1))
+            # print("avg MLUPS: ", mlups / (i + 1))
             if not energy_new == energy_new:
                 print("CRASHED!")
                 break
@@ -162,3 +162,5 @@ t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
 print(run_name, " took ", time() - t, " s")
+
+# TODO: Append output to a csv file

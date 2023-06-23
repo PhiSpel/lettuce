@@ -1,7 +1,7 @@
 import os
 
 from lettuce import Obstacle
-import matplotlib.pyplot as plt
+import lettuce as lt
 import numpy as np
 from scipy import interpolate
 
@@ -15,12 +15,37 @@ class Naca(Obstacle):
         args["chord_length"]: float
         args["vchar"]: float
         args["Ma"]: float
+        args["filename_base"]: str
+
+        self.filename_base = args["filename_base"]
+        self.t_pre = args["wing_length"] / args["vchar"] * 5
+        self.Re_pre = 5000
+        self.Ma_pre = 0.1
 
         super(Naca, self).__init__(shape, reynolds_number=args["Re"], mach_number=args["Ma"],lattice=lattice,
                                    domain_length_x=args["domain_length_x"], char_length=args["chord_length"],
                                    char_velocity=args["vchar"])
         x, y = self.grid
         self.mask = self.mask_from_csv(x, y, wing_name, **args)
+        self.lattice = lattice
+        self.pre_flow = Obstacle(shape, reynolds_number=self.Re_pre, mach_number=self.Ma_pre, lattice=self.lattice,
+                                 domain_length_x=args["domain_length_x"])
+        self.pre_flow.mask = self.mask
+        self.n_pre = int(self.pre_flow.units.convert_time_to_lu(self.t_pre))
+
+    def initial_solution(self, x):
+        # run a bit with low Re
+        print('Doing ', self.n_pre, ' steps with Re = ', self.Re_pre, ' before actual run.')
+        collision = lt.RegularizedCollision(self.lattice, self.units.relaxation_parameter_lu)
+        simulation = lt.Simulation(self.pre_flow, self.lattice, collision, lt.StandardStreaming(self.lattice))
+        print("Pre-time in pu: {:.4f}".format(self.pre_flow.units.convert_time_to_pu(self.n_pre)), "s")
+        simulation.initialize_f_neq()
+        simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=self.n_pre,
+                                                   filename_base=self.filename_base))
+        simulation.step(self.n_pre)
+        p = simulation.flow.units.convert_density_lu_to_pressure_pu(simulation.lattice.rho(simulation.f))
+        u = self.pre_flow.units.convert_velocity_to_pu(self.lattice.u(simulation.f))
+        return p, u
 
     def mask_from_csv(self, x, y, wing_name, **args):
         mask_shape = np.shape(x)

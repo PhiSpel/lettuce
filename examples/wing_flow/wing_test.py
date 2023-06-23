@@ -6,7 +6,7 @@ import numpy as np
 from scipy import interpolate
 from matplotlib import pyplot as plt
 from time import time
-from maskfromcsv import Naca
+from naca_obstacle import Naca
 import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
