@@ -12,7 +12,6 @@ class Naca(Obstacle):
         args["x_wing_nose"]: float
         args["x_wing_tail"]: float
         args["wing_length"]: float
-        args["chord_length"]: float
         args["vchar"]: float
         args["Ma"]: float
         args["filename_base"]: str
@@ -30,21 +29,24 @@ class Naca(Obstacle):
         self.args = args
 
         super(Naca, self).__init__(shape, reynolds_number=args["Re"], mach_number=args["Ma"], lattice=lattice,
-                                   domain_length_x=args["domain_length_x"], char_length=args["chord_length"],
+                                   domain_length_x=args["domain_length_x"], char_length=args["wing_length"],
                                    char_velocity=args["vchar"])
-        x, y = self.grid
-        self.mask = self.mask_from_csv(x, y, wing_name, **args)
+        self.mask = self.mask_from_csv(self.wing_name, **self.args)
 
     def initial_solution(self, x):
         # run a bit with low Re
         print('Doing', self.n_pre, 'steps with Re =', self.Re_pre, 'before actual run. ', end="")
-        x, y = self.grid
-        self.pre_flow.mask = self.mask_from_csv(x, y, self.wing_name, **self.args)
-        collision = lt.KBCCollision2D(self.lattice, self.units.relaxation_parameter_lu)
+        self.pre_flow.mask = self.mask_from_csv(self.wing_name, **self.args)
+        if x[0].ndim == 2:
+            collision = lt.KBCCollision2D(self.lattice, self.units.relaxation_parameter_lu)
+        elif x[0].ndim == 3:
+            collision = lt.KBCCollision3D(self.lattice, self.units.relaxation_parameter_lu)
+        else:
+            collision = lt.BGKCollision(self.lattice, self.units.relaxation_parameter_lu)
         simulation = lt.Simulation(self.pre_flow, self.lattice, collision, lt.StandardStreaming(self.lattice))
         print("Pre-time in pu: {:.4f}".format(self.pre_flow.units.convert_time_to_pu(self.n_pre)), "s")
         simulation.initialize_f_neq()
-        simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=10, #self.n_pre
+        simulation.reporters.append(lt.VTKReporter(self.lattice, self.pre_flow, interval=int(self.n_pre//20),
                                                    filename_base=self.filename_base+'pre'))
         simulation.step(self.n_pre)
         p = simulation.flow.units.convert_density_lu_to_pressure_pu(simulation.lattice.rho(simulation.f))
@@ -52,17 +54,18 @@ class Naca(Obstacle):
         # print(simulation.flow.units.reynolds_number)
         # print(p.mean().item())
         # print(u.mean().item())
+        if x[0].ndim == 3:
+            nx, ny, nz = x[0].shape
+            u1 = (np.random.rand(nx, ny, nz) - 0.5) * 2
+            u2 = (np.random.rand(nx, ny, nz) - 0.5) * 2
+            u3 = (np.random.rand(nx, ny, nz) - 0.5) * 2
+            u = u.cpu() + np.array([u1, u2, u3]) * np.invert(self.pre_flow.mask)
         return p, u
 
-    def mask_from_csv(self, x, y, wing_name, **args):
+    def mask_from_csv(self, wing_name, **args):
+        x, y, *z = self.grid
         mask_shape = np.shape(x)
-        nx1, ny1 = mask_shape
-        dx = args["domain_length_x"] / nx1  ## i.e. resolution
-        n_wing_nose = int(args["x_wing_nose"] // dx)  ## first grid point with wing
-        n_wing_tail = int(args["x_wing_tail"] // dx)  ## first grid point with wing
-        # n_wing_nose = int(nx1//5)    # wing starts after 1/5 of domain length
-        # n_wing_tail = int(nx1*3//5)  # wing goes until 3/5 of domain length
-        n_wing_height = int(ny1 // 2)  # wing sits at middle of domain length
+        n_wing_height = int(mask_shape[1] // 2)  # wing sits at middle of domain length
 
         # read wing data from http://airfoiltools.com/plotter/index
         surface_data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + '/' + wing_name + '.csv',
@@ -76,7 +79,7 @@ class Naca(Obstacle):
         # x_wing_nose = x[n_wing_nose,0]
         # x_wing_tail = x[n_wing_tail,0]
         # available_length_x = x_wing_tail - x_wing_nose
-        available_length_n = n_wing_tail - n_wing_nose
+        available_length_n = args["n_wing_tail"] - args["n_wing_nose"]
         actual_wing_length_x = max(max(x_data_top), max(x_data_bottom))
         scaling_factor = args["wing_length"] / actual_wing_length_x
 
@@ -86,6 +89,16 @@ class Naca(Obstacle):
         y_data_top *= scaling_factor
         y_data_bottom *= scaling_factor
 
+        # rescale if wing is too large vertically (should be less than half of the domain
+        y_wing_height = max(x_data_top) - min(y_data_bottom)
+        domain_height = np.max(y)
+        if y_wing_height >= 0.5 * domain_height:
+            scaling_factor = domain_height / y_wing_height
+            x_data_top *= scaling_factor
+            x_data_bottom *= scaling_factor
+            y_data_top *= scaling_factor
+            y_data_bottom *= scaling_factor
+
         # mapping data to the grid
         x_data_interp = np.linspace(0, args["wing_length"], available_length_n)  # [0 ... 5.05]
         y_data_top_interp = interpolate.interp1d(x_data_top, y_data_top, fill_value="extrapolate")(
@@ -94,15 +107,30 @@ class Naca(Obstacle):
             x_data_interp)  # .interp1d object
 
         # shifting the wing up by half the grid
-        y_wing_height = y[0, n_wing_height]
-        y_data_top_interp += y_wing_height
-        y_data_bottom_interp += y_wing_height
+        if y.ndim == 2:
+            y_wing_height = y[0, n_wing_height]
+            y_data_top_interp += y_wing_height
+            y_data_bottom_interp += y_wing_height
 
-        # setting y data in a 2D grid to compare with flow.grid[1]
-        y_data_top_mapped = np.zeros(mask_shape)
-        y_data_top_mapped[n_wing_nose:n_wing_tail, :] = np.array([y_data_top_interp]).transpose()
-        y_data_bottom_mapped = np.zeros(mask_shape)
-        y_data_bottom_mapped[n_wing_nose:n_wing_tail, :] = np.array([y_data_bottom_interp]).transpose()
+            # setting y data in a 2D grid to compare with flow.grid[1]
+            y_data_top_mapped = np.zeros(mask_shape)
+            y_data_top_mapped[args["n_wing_nose"]:args["n_wing_tail"], :] = np.array([y_data_top_interp]).transpose()
+            y_data_bottom_mapped = np.zeros(mask_shape)
+            y_data_bottom_mapped[args["n_wing_nose"]:args["n_wing_tail"], :] = np.array([y_data_bottom_interp]).transpose()
+        elif y.ndim == 3:
+            y_wing_height = y[0, n_wing_height, 0]
+            y_data_top_interp += y_wing_height
+            y_data_bottom_interp += y_wing_height
+
+            # setting y data in a 2D grid to compare with flow.grid[1]
+            y_data_top_mapped = np.zeros(mask_shape)
+            y_data_bottom_mapped = np.zeros(mask_shape)
+            for iz in range(mask_shape[2]):
+                y_data_top_mapped[args["n_wing_nose"]:args["n_wing_tail"], :, iz] += np.array([y_data_top_interp]).transpose()
+                y_data_bottom_mapped[args["n_wing_nose"]:args["n_wing_tail"], :, iz] += np.array([y_data_bottom_interp]).transpose()
+        else:
+            assert ValueError("Wrong dimensions, must be 2 or 3.")
+            return
 
         # creating mask
         bool_mask = (y < y_data_top_mapped) & (y > y_data_bottom_mapped)
