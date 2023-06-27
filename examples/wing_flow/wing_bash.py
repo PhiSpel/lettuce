@@ -8,7 +8,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 #########################
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("--outputdir", default=os.getcwd() + "/data/", type=str, help="directory for output data")
+parser.add_argument("--outputdir", default=os.getcwd() + "/wing_data/", type=str, help="directory for output data")
 parser.add_argument("--n_steps", default=5000, type=int, help="number of steps to simulate, overwritten by t_target")
 parser.add_argument("--nmax", default=50000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
