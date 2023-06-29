@@ -101,10 +101,10 @@ if collision_type == "kbc":
     collision = lt.KBCCollision3D(flow.lattice, tau)
 elif collision_type == "reg":
     collision = lt.RegularizedCollision(flow.lattice, tau)
-elif collision_type == "bgk":
-    collision = lt.BGKCollision(flow.lattice, tau)
 else:
-    assert ValueError("collision must be set to kbc, reg, or bgk")
+    if collision_type == "bgk":
+        assert ValueError("Collision must be set to kbc, reg, or bgk. Falling back to default bgk")
+    collision = lt.BGKCollision(flow.lattice, tau)
 simulation = lt.Simulation(flow, flow.lattice, collision, lt.StandardStreaming(flow.lattice))
 if args["t_target"] is not None:
     args["n_steps"] = flow.units.convert_time_to_lu(args["t_target"])
