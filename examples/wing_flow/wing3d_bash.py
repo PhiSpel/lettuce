@@ -11,6 +11,8 @@ from collections import Counter
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--outputdir", default=os.getcwd() + "/wing_data/3D", type=str, help="directory for output data")
+parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
+parser.add_argument("--outputname", default=None, type=str, help="name base of output files")
 parser.add_argument("--n_steps", default=20000, type=int, help="number of steps to simulate, overwritten by t_target")
 parser.add_argument("--nmax", default=100000, type=int, help="maximum number of steps to simulate, not overwritten")
 parser.add_argument("--t_target", default=None, type=float, help="time in PU to simulate")
@@ -23,7 +25,6 @@ parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=10000, type=float, help="Reynolds number, set 0 to calculate")
 parser.add_argument("--no_cuda", default=0, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="kbc", help="collision operator (bgk, kbc, reg)")
-parser.add_argument("--name", default='NACA-0012-lowAOA', type=str, help="name of wing profile file")
 parser.add_argument("--ny", default=100, type=int, help="lattice nodes in y-direction")
 parser.add_argument("--nx", default=None, type=int, help="lattice nodes in x-direction")
 parser.add_argument("--nz", default=None, type=int, help="lattice nodes in z-direction")
@@ -73,8 +74,9 @@ if args["t_target"] is None and not args["n_stream"] is None:
 # test for convergence and crash
 test_iterations = True
 
-file_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(Ma)
-args["filename_base"] = args["outputdir"] + file_name
+if not "outputname" in args:
+    args["outputname"] = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(Ma)
+args["filename_base"] = args["outputdir"] + args["outputname"]
 
 run_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + "_Ma" + str(Ma)
 t = time()
@@ -106,7 +108,7 @@ simulation = lt.Simulation(flow, flow.lattice, collision, lt.StandardStreaming(f
 if args["t_target"] is not None:
     args["n_steps"] = flow.units.convert_time_to_lu(args["t_target"])
 t_target = flow.units.convert_velocity_to_pu(args["n_steps"])
-print("Key paramters of ", file_name, ": {:.0e}".format(args["n_steps"]), "steps, chord length", wing_length,
+print("Key paramters of ", args["outputname"], ": {:.0e}".format(args["n_steps"]), "steps, chord length", wing_length,
       "[m], Re {:.2e}".format(args["Re"]), "[1], Ma {:.2f}".format(Ma))
 print("Doing up to {:.0e}".format(args["n_steps"]), " steps.")
 print("I will record every", nreport, "-th step, print every", n_test, "-th step. ",
