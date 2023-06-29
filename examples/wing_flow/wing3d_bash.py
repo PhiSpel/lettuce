@@ -23,6 +23,7 @@ parser.add_argument("--nreport_pre", default=500, type=int, help="vtk output eve
 parser.add_argument("--ntest", default=1000, type=int, help="test for nans every ntest steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=10000, type=float, help="Reynolds number, set 0 to calculate")
+parser.add_argument("--Re_pre", default=1000, type=float, help="Reynolds number for pre-run")
 parser.add_argument("--no_cuda", default=0, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="kbc", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--ny", default=100, type=int, help="lattice nodes in y-direction")

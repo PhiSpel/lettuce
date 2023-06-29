@@ -11,7 +11,7 @@ class Naca(Obstacle):
     def __init__(self, **args):
         self.filename_base = args["filename_base"]
         self.t_pre = args["wing_length"] / args["vchar"] * args["n_stream_pre"]
-        self.Re_pre = 1000
+        self.Re_pre = args["Re_pre"]
         self.Ma_pre = 0.1
         self.shape = args["shape"]
         self.wing_name = args["name"]
