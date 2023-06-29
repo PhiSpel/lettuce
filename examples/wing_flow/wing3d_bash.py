@@ -17,6 +17,7 @@ parser.add_argument("--t_target", default=None, type=float, help="time in PU to 
 parser.add_argument("--n_stream", default=None, type=float, help="stream past the profile n_stream times")
 parser.add_argument("--n_stream_pre", default=5, type=float, help="stream past the profile n_stream times with low Re")
 parser.add_argument("--nreport", default=500, type=int, help="vtk output every nreport steps")
+parser.add_argument("--nreport_pre", default=500, type=int, help="vtk output every nreport steps during pre-run")
 parser.add_argument("--ntest", default=1000, type=int, help="test for nans every ntest steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=10000, type=float, help="Reynolds number, set 0 to calculate")
@@ -56,6 +57,7 @@ args["n_wing_tail"] = int((args["x_before"] + args["wing_length"]) // args["dx"]
 
 # FLOW CHARACTERISTICS #
 # Re = 5e6
+Ma = args["Ma"]
 if args["Re"] == 0:
     lchar = args["wing_length"]  # characteristic length in pu is obstacle length
     temp = tempC + 273.15  # temperature in Kelvin
@@ -71,93 +73,71 @@ if args["t_target"] is None and not args["n_stream"] is None:
 # test for convergence and crash
 test_iterations = True
 
-file_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(args["Ma"])
+file_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(Ma)
 args["filename_base"] = args["outputdir"] + file_name
 
-
-def setup_simulation(**kwargs):
-    # unpacking kwargs
-    t_target = kwargs["t_target"]
-    n_steps = kwargs["n_steps"]
-    Re = kwargs["Re"]
-    Ma = kwargs["Ma"]
-    collision_type = kwargs["collision"]
-    filename_base = kwargs["filename_base"]
-    n_test = kwargs["ntest"]
-    wing_length = kwargs["wing_length"]
-    nreport = kwargs["nreport"]
-    ntest = kwargs["ntest"]
-
-    flow = Naca(**kwargs)
-    tau = flow.units.relaxation_parameter_lu
-    # collision operator
-    if collision_type == "kbc":
-        collision = lt.KBCCollision3D(flow.lattice, tau)
-    elif collision_type == "reg":
-        collision = lt.RegularizedCollision(flow.lattice, tau)
-    elif collision_type == "bgk":
-        collision = lt.BGKCollision(flow.lattice, tau)
-    else:
-        assert ValueError("collision must be set to kbc, reg, or bgk")
-        return
-    simulation = lt.Simulation(flow, flow.lattice, collision, lt.StandardStreaming(flow.lattice))
-    if t_target is not None:
-        n_steps = flow.units.convert_time_to_lu(t_target)
-    t_target = flow.units.convert_velocity_to_pu(n_steps)
-    print("Key paramters of ", file_name, ": {:.0e}".format(n_steps), "steps, chord length", wing_length,
-          "[m], Re {:.2e}".format(Re), "[1], Ma {:.2f}".format(Ma))
-    print("Doing up to {:.0e}".format(n_steps), " steps.")
-    print("I will record every", nreport, "-th step, print every", n_test, "-th step. ",
-          "1 step corresponds to {:.4f}".format(t_target / n_steps), "seconds.\nReports are in ", filename_base)
-
-    # set up reporters
-    energy = lt.IncompressibleKineticEnergy(flow.lattice, flow)
-    # energy_reporter_internal = lt.ObservableReporter(energy, interval=nreport, out=None)
-    # simulation.reporters.append(energy_reporter_internal)
-    simulation.reporters.append(lt.ObservableReporter(energy, interval=ntest))  # print energy
-    simulation.reporters.append(lt.VTKReporter(flow.lattice, flow, interval=nreport, filename_base=filename_base))
-
-    # packing kwargs
-    kwargs["t_target"] = t_target
-    kwargs["n_steps"] = n_steps
-
-    return simulation, energy, kwargs
-
-
-def run_n_plot(simulation, energy, **kwargs):
-    # unpacking kwargs
-    n_steps = kwargs["n_steps"]
-    ntest = kwargs["ntest"]
-
-    # initialize simulation
-    simulation.initialize_f_neq()
-    energy_test = energy(simulation.f).cpu().mean().item()
-    if not energy_test == energy_test:
-        print("Pre-run crashed!")
-        return
-    if test_iterations:
-        mlups = 0
-        it = 0
-        i = 0
-        while it <= n_steps:
-            i += 1
-            it += ntest
-            mlups += simulation.step(ntest)
-            energy_test = energy(simulation.f).cpu().mean().item()
-            # print("avg MLUPS: ", mlups / (i + 1))
-            if not energy_test == energy_test:
-                print("CRASHED!")
-                break
-    else:
-        mlups = simulation.step(n_steps)
-        print("MLUPS: ", mlups)
-    return
-
-
-run_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + "_Ma" + str(args["Ma"])
+run_name = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + "_Ma" + str(Ma)
 t = time()
-sim, ener, args = setup_simulation(**args)
-run_n_plot(sim, ener, **args)
+
+# unpacking args
+# t_target = args["t_target"]
+# n_steps = args["n_steps"]
+# Re = args["Re"]
+# collision_type = args["collision"]
+filename_base = args["filename_base"]
+n_test = args["ntest"]
+wing_length = args["wing_length"]
+nreport = args["nreport"]
+ntest = args["ntest"]
+
+flow = Naca(**args)
+tau = flow.units.relaxation_parameter_lu
+# collision operator
+collision_type = args["collision"]
+if collision_type == "kbc":
+    collision = lt.KBCCollision3D(flow.lattice, tau)
+elif collision_type == "reg":
+    collision = lt.RegularizedCollision(flow.lattice, tau)
+elif collision_type == "bgk":
+    collision = lt.BGKCollision(flow.lattice, tau)
+else:
+    assert ValueError("collision must be set to kbc, reg, or bgk")
+simulation = lt.Simulation(flow, flow.lattice, collision, lt.StandardStreaming(flow.lattice))
+if args["t_target"] is not None:
+    args["n_steps"] = flow.units.convert_time_to_lu(args["t_target"])
+t_target = flow.units.convert_velocity_to_pu(args["n_steps"])
+print("Key paramters of ", file_name, ": {:.0e}".format(args["n_steps"]), "steps, chord length", wing_length,
+      "[m], Re {:.2e}".format(args["Re"]), "[1], Ma {:.2f}".format(Ma))
+print("Doing up to {:.0e}".format(args["n_steps"]), " steps.")
+print("I will record every", nreport, "-th step, print every", n_test, "-th step. ",
+      "1 step corresponds to {:.4f}".format(t_target / args["n_steps"]), "seconds.\nReports are in ", filename_base)
+
+# set up reporters
+energy = lt.IncompressibleKineticEnergy(flow.lattice, flow)
+# energy_reporter_internal = lt.ObservableReporter(energy, interval=nreport, out=None)
+# simulation.reporters.append(energy_reporter_internal)
+simulation.reporters.append(lt.ObservableReporter(energy, interval=ntest))  # print energy
+simulation.reporters.append(lt.VTKReporter(flow.lattice, flow, interval=nreport, filename_base=filename_base))
+
+# initialize simulation
+simulation.initialize_f_neq()
+if test_iterations:
+    mlups = 0
+    it = 0
+    i = 0
+    while it <= args["n_steps"]:
+        i += 1
+        it += ntest
+        mlups += simulation.step(ntest)
+        energy_test = energy(simulation.f).cpu().mean().item()
+        # print("avg MLUPS: ", mlups / (i + 1))
+        if not energy_test == energy_test:
+            print("CRASHED!")
+            break
+else:
+    mlups = simulation.step(args["n_steps"])
+    print("MLUPS: ", mlups)
+
 print(run_name, " took ", time() - t, " s")
 
 # Tidying up: Reading allocated memories

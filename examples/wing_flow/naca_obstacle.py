@@ -4,6 +4,7 @@ import lettuce as lt
 import numpy as np
 from scipy import interpolate
 import torch
+from pyevtk.hl import imageToVTK
 
 
 class Naca(Obstacle):
@@ -24,6 +25,9 @@ class Naca(Obstacle):
                                    lattice=self.lattice, domain_length_x=args["domain_length_x"],
                                    char_length=args["wing_length"], char_velocity=args["vchar"])
         self.mask = self.mask_from_csv(self.wing_name, self.grid, **self.args)
+        # point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
+        # for d in range(self.lattice.D):
+        #     self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
 
     def get_lattice(self):
         if self.args["no_cuda"] == 1:
@@ -41,6 +45,16 @@ class Naca(Obstacle):
         # run a bit with low Re
         print('Doing', n_pre, 'steps with Re =', self.Re_pre, 'before actual run. ', end="")
         pre_flow.mask = self.mask_from_csv(self.wing_name, pre_flow.grid, **self.args)
+        point_dict = dict()
+        point_dict["mask"] = pre_flow.mask.astype(int)
+        imageToVTK(
+            path=f"{self.filename_base}_mask",
+            origin=(0.0, 0.0, 0.0),
+            spacing=(1.0, 1.0, 1.0),
+            cellData=None,
+            pointData=point_dict,
+            fieldData=None,
+        )
         ndim = len(self.shape)
         if ndim == 2:
             collision = lt.KBCCollision2D(lattice, pre_flow.units.relaxation_parameter_lu)
@@ -51,7 +65,7 @@ class Naca(Obstacle):
         simulation = lt.Simulation(pre_flow, lattice, collision, lt.StandardStreaming(lattice))
         print("Pre-time in pu: {:.4f}".format(pre_flow.units.convert_time_to_pu(n_pre)), "s")
         simulation.initialize_f_neq()
-        simulation.reporters.append(lt.VTKReporter(lattice, pre_flow, interval=int(n_pre // 20),
+        simulation.reporters.append(lt.VTKReporter(lattice, pre_flow, interval=self.args["nreport_pre"],
                                                    filename_base=self.filename_base + 'pre'))
         simulation.step(n_pre)
         p = simulation.flow.units.convert_density_lu_to_pressure_pu(simulation.lattice.rho(simulation.f))
@@ -62,6 +76,9 @@ class Naca(Obstacle):
             u2 = (np.random.rand(nx, ny, nz) - 0.5) * 2
             u3 = (np.random.rand(nx, ny, nz) - 0.5) * 2
             u = u.cpu() + np.array([u1, u2, u3]) * np.invert(pre_flow.mask)
+        u_test = lattice.u(simulation.f).cpu().mean().item()
+        if not u_test == u_test:
+            print("Pre-run crashed!")
         return p, u
 
     def initial_solution(self, x):
