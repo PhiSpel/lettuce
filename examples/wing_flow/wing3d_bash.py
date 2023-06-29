@@ -75,7 +75,7 @@ if args["t_target"] is None and not args["n_stream"] is None:
 # test for convergence and crash
 test_iterations = True
 
-if not "outputname" in args:
+if args["outputname"] is None:
     args["outputname"] = args["name"] + '_ny' + str(args["ny"]) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(Ma)
 args["filename_base"] = args["outputdir"] + args["outputname"]
 
