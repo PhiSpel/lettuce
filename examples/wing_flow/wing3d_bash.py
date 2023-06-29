@@ -20,6 +20,7 @@ parser.add_argument("--n_stream", default=None, type=float, help="stream past th
 parser.add_argument("--n_stream_pre", default=5, type=float, help="stream past the profile n_stream times with low Re")
 parser.add_argument("--nreport", default=500, type=int, help="vtk output every nreport steps")
 parser.add_argument("--nreport_pre", default=500, type=int, help="vtk output every nreport steps during pre-run")
+parser.add_argument("--ignore_outputs", default=None, type=int, help="ignore first ... outputs")
 parser.add_argument("--ntest", default=1000, type=int, help="test for nans every ntest steps")
 parser.add_argument("--Ma", default=0.1, type=float, help="Mach number")
 parser.add_argument("--Re", default=10000, type=float, help="Reynolds number, set 0 to calculate")
@@ -124,11 +125,30 @@ simulation.reporters.append(lt.VTKReporter(flow.lattice, flow, interval=nreport,
 
 # initialize simulation
 simulation.initialize_f_neq()
-if test_iterations:
+if args["ignore_outputs"] is None:
+    if test_iterations:
+        mlups = 0
+        it = 0
+        i = 0
+        while it <= args["n_steps"]:
+            i += 1
+            it += ntest
+            mlups += simulation.step(ntest)
+            energy_test = energy(simulation.f).cpu().mean().item()
+            # print("avg MLUPS: ", mlups / (i + 1))
+            if not energy_test == energy_test:
+                print("CRASHED!")
+                break
+    else:
+        mlups = simulation.step(args["n_steps"])
+        print("MLUPS: ", mlups)
+else:
+    simulation.reporters[1].interval = args["ignore_outputs"]
+    simulation.step(args["ignore_outputs"])
     mlups = 0
     it = 0
     i = 0
-    while it <= args["n_steps"]:
+    while it <= (args["n_steps"]-args["ignore_outputs"]):
         i += 1
         it += ntest
         mlups += simulation.step(ntest)
@@ -137,9 +157,6 @@ if test_iterations:
         if not energy_test == energy_test:
             print("CRASHED!")
             break
-else:
-    mlups = simulation.step(args["n_steps"])
-    print("MLUPS: ", mlups)
 
 print(run_name, " took ", time() - t, " s")
 
