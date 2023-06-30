@@ -19,7 +19,7 @@ import torch
 import numpy as np
 from lettuce import (LettuceException)
 
-__all__ = ["BounceBackBoundary", "AntiBounceBackOutlet", "EquilibriumBoundaryPU", "EquilibriumOutletP"]
+__all__ = ["BounceBackBoundary", "AntiBounceBackOutlet", "EquilibriumBoundaryPU", "EquilibriumOutletP", "SlipBoundary"]
 
 
 class BounceBackBoundary:
@@ -162,3 +162,35 @@ class EquilibriumOutletP(AntiBounceBackOutlet):
         no_collision_mask = torch.zeros(size=f_shape[1:], dtype=torch.bool, device=self.lattice.device)
         no_collision_mask[self.index] = 1
         return no_collision_mask
+
+
+class SlipBoundary:
+    """slips along x and z, bounces back along y
+    give direction as 0, 1, or 2
+    """
+    def __init__(self, mask, lattice, direction):
+        self.mask = lattice.convert_to_tensor(mask)
+        self.lattice = lattice
+        self.bb_direction = direction
+
+    def __call__(self, f):
+        e = self.lattice.stencil.e
+        indices_to_bounce_back = np.where(e[:, self.bb_direction] == 0)
+        opposite_stencil = np.array(e)
+        opposite_stencil[indices_to_bounce_back] = -e[indices_to_bounce_back]
+        self.opposite = []
+        for opp_dir in e:
+            self.opposite.append(np.where(np.array(e == opp_dir).all(axis=1))[0][0])
+            # for n_dir_opp in np.range(len(e)):
+            #     if np.array(e[n_dir] == opposite_stencil[n_dir_opp]).all():
+            #         self.opposite[n_dir_opp] = n_dir
+        #     self.opposite.append(np.where(sum(np.where(e[n_dir] == opposite_stencil)) == 3))
+        # for opp in opposite_stencil:
+        #     self.opposite.append(np.where(sum(np.where(e[:] == opp)) == 3))
+        #self.opposite = np.array([np.where(opp == e) for opp in opposite_stencil])
+        f = torch.where(self.mask, f[self.opposite], f)
+        return f
+
+    def make_no_collision_mask(self, f_shape):
+        assert self.mask.shape == f_shape[1:]
+        return self.mask

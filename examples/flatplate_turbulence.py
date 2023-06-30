@@ -15,8 +15,8 @@ parser.add_argument("--outputname", default="flatplate", type=str, help="name ba
 
 args = vars(parser.parse_args())
 
-nx = 5000
-ny = 100
+nx = 1000
+ny = 50
 nz = 25
 Re = 2.5e5
 shape = (nx, ny, nz)
