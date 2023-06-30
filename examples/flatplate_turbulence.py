@@ -6,6 +6,14 @@ import gc
 from collections import Counter
 from flatplate import FlatPlate
 import sys
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument("--outputdir", default=os.getcwd() + "/data/", type=str, help="directory for output data")
+parser.add_argument("--logfile", default=None, type=str, help="logfile")
+parser.add_argument("--outputname", default="flatplate", type=str, help="name base of output files")
+
+args = vars(parser.parse_args())
 
 nx = 5000
 ny = 100
@@ -19,29 +27,26 @@ Ma = 0.1
 nmax = 100000
 nreport = 500
 ntest = 5000
-runname = "flatplate"
-filename_base = os.getcwd() + "/test/" + runname
-logfile = os.getcwd() + "/" + runname + ".txt"
+filename_base = args["outputdir"] + args["outputname"]
 printing = sys.stdout
 
+# LOG FILE #
+if args["logfile"] is not None:
+    class Logger(object):
+        def __init__(self):
+            self.terminal = sys.stdout
+            self.log = open(args["logfile"], "a")
 
-class Logger(object):
-    def __init__(self):
-        self.terminal = sys.stdout
-        self.log = open(logfile, "a")
+        def write(self, message):
+            self.terminal.write(message)
+            self.log.write(message)
 
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-
-    def flush(self):
-        # this flush method is needed for python 3 compatibility.
-        # this handles the flush command by doing nothing.
-        # you might want to specify some extra behavior here.
-        pass
-
-
-sys.stdout = Logger()
+        def flush(self):
+            # this flush method is needed for python 3 compatibility.
+            # this handles the flush command by doing nothing.
+            # you might want to specify some extra behavior here.
+            pass
+    sys.stdout = Logger()
 
 t = time()
 
@@ -51,7 +56,7 @@ t_target = flow.units.convert_time_to_pu(nmax)
 tau = flow.units.relaxation_parameter_lu
 collision = lt.KBCCollision3D(lattice, tau)
 simulation = lt.Simulation(flow, lattice, collision, lt.StandardStreaming(lattice))
-print("Key paramters of ", runname, ": {:.0e}".format(nmax), "steps, chord length", domain_length_x,
+print("Key paramters of ", args["outputname"], ": {:.0e}".format(nmax), "steps, chord length", domain_length_x,
       "[m], Re {:.2e}".format(Re), "[1], Ma {:.2f}".format(Ma))
 print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
       "1 step corresponds to {:.4f}".format(t_target / nmax), "seconds.\nReports are in ", filename_base)
@@ -79,7 +84,7 @@ while it <= nmax:
         break
     print("avg MLUPS: ", mlups / i)
 
-print(runname, " took ", time() - t, " s")
+print(args["outputname"], " took ", time() - t, " s")
 
 # Tidying up: Reading allocated memories
 
