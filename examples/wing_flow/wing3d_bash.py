@@ -148,7 +148,7 @@ else:
     mlups = 0
     it = 0
     i = 0
-    while it <= (args["n_steps"]-args["ignore_outputs"]):
+    while it <= min(args["n_steps"], args["n_steps"] - args["ignore_outputs"]):
         simulation.reporters[1].interval = args["nreport"]
         i += 1
         it += ntest
