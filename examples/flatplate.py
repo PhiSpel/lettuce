@@ -28,13 +28,13 @@ class FlatPlate(object):
     @property
     def boundaries(self):
         plate = np.zeros(self.shape, dtype=bool)
+        top = np.zeros(self.shape, dtype=bool)
         inflow = np.zeros(self.shape, dtype=bool)
         outflow = np.zeros(self.shape, dtype=bool)
-        top = np.zeros(self.shape, dtype=bool)
         plate[:, 0, :] = True
+        top[:, -1, :] = True
         inflow[0, :, :] = True
         outflow[-1, :, :] = True
-        top[0, -1, :] = True
         return [lt.BounceBackBoundary(plate, self.units.lattice),
                 lt.SlipBoundary(top, self.units.lattice, 1),
                 lt.EquilibriumBoundaryPU(inflow, self.units.lattice, self.units,
