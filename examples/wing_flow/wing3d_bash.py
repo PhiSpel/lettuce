@@ -143,21 +143,22 @@ if args["ignore_outputs"] is None:
         mlups = simulation.step(args["n_steps"])
         print("MLUPS: ", mlups)
 else:
+    args["ignore_outputs"] = min(args["ignore_outputs"], args["n_steps"])
     simulation.reporters[1].interval = args["ignore_outputs"]
     simulation.step(args["ignore_outputs"])
     mlups = 0
-    it = 0
-    i = 0
-    while it <= min(args["n_steps"], args["n_steps"] - args["ignore_outputs"]):
+    it = 1
+    i = 1
+    while it <= (args["n_steps"] - args["ignore_outputs"]):
         simulation.reporters[1].interval = args["nreport"]
         i += 1
         it += ntest
         mlups += simulation.step(ntest)
         energy_test = energy(simulation.f).cpu().mean().item()
-        # print("avg MLUPS: ", mlups / (i + 1))
         if not energy_test == energy_test:
             print("CRASHED!")
             break
+    print("avg MLUPS: ", mlups / i)
 
 print(run_name, " took ", time() - t, " s")
 
