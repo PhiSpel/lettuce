@@ -89,7 +89,6 @@ t = time()
 # Re = args["Re"]
 # collision_type = args["collision"]
 filename_base = args["filename_base"]
-n_test = args["ntest"]
 wing_length = args["wing_length"]
 nreport = args["nreport"]
 ntest = args["ntest"]
@@ -113,7 +112,7 @@ t_target = flow.units.convert_velocity_to_pu(args["n_steps"])
 print("Key paramters of ", args["outputname"], ": {:.0e}".format(args["n_steps"]), "steps, chord length", wing_length,
       "[m], Re {:.2e}".format(args["Re"]), "[1], Ma {:.2f}".format(Ma))
 print("Doing up to {:.0e}".format(args["n_steps"]), " steps.")
-print("I will record every", nreport, "-th step, print every", n_test, "-th step. ",
+print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
       "1 step corresponds to {:.4f}".format(t_target / args["n_steps"]), "seconds.\nReports are in ", filename_base)
 
 # set up reporters
@@ -143,21 +142,22 @@ if args["ignore_outputs"] is None:
         mlups = simulation.step(args["n_steps"])
         print("MLUPS: ", mlups)
 else:
+    args["ignore_outputs"] = min(args["ignore_outputs"], args["n_steps"])
     simulation.reporters[1].interval = args["ignore_outputs"]
     simulation.step(args["ignore_outputs"])
     mlups = 0
-    it = 0
-    i = 0
-    while it <= min(args["n_steps"], args["n_steps"] - args["ignore_outputs"]):
+    it = 1
+    i = 1
+    while it <= (args["n_steps"] - args["ignore_outputs"]):
         simulation.reporters[1].interval = args["nreport"]
         i += 1
         it += ntest
         mlups += simulation.step(ntest)
         energy_test = energy(simulation.f).cpu().mean().item()
-        # print("avg MLUPS: ", mlups / (i + 1))
         if not energy_test == energy_test:
             print("CRASHED!")
             break
+    print("avg MLUPS: ", mlups / i)
 
 print(run_name, " took ", time() - t, " s")
 
