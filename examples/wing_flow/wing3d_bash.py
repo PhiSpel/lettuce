@@ -6,6 +6,7 @@ from naca_obstacle import Naca
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import gc
 from collections import Counter
+import sys
 
 #########################
 # ARGUMENT PARSING
@@ -37,8 +38,29 @@ parser.add_argument("--vchar", default=5, type=int,
                          "large wind turbines produce maximum power at 15 m/s. "
                          "This can be assumed to be streaming velocity around the centre")
 parser.add_argument("--wing_length", default=4, type=int, help="'depth' of airfoil profile")
+parser.add_argument("--logfile", default=None, type=int, help="logfile")
 
 args = vars(parser.parse_args())
+
+printing = sys.stdout
+
+# LOG FILE #
+if args["logfile"] is not None:
+    class Logger(object):
+        def __init__(self):
+            self.terminal = sys.stdout
+            self.log = open(args["logfile"], "a")
+
+        def write(self, message):
+            self.terminal.write(message)
+            self.log.write(message)
+
+        def flush(self):
+            # this flush method is needed for python 3 compatibility.
+            # this handles the flush command by doing nothing.
+            # you might want to specify some extra behavior here.
+            pass
+    sys.stdout = Logger()
 
 # APPLICATION #
 # turbine_diameter =
@@ -109,8 +131,9 @@ simulation = lt.Simulation(flow, flow.lattice, collision, lt.StandardStreaming(f
 if args["t_target"] is not None:
     args["n_steps"] = flow.units.convert_time_to_lu(args["t_target"])
 t_target = flow.units.convert_velocity_to_pu(args["n_steps"])
-print("Key paramters of ", args["outputname"], ": {:.0e}".format(args["n_steps"]), "steps, chord length", wing_length,
-      "[m], Re {:.2e}".format(args["Re"]), "[1], Ma {:.2f}".format(Ma))
+print("Key paramters of ", args["outputname"], ": {:.0e}".format(args["n_steps"]), "steps, of which first",
+      args["ignore_outputs"], "are ignored. Chord length", wing_length, "[m], Re {:.2e}".format(args["Re"]),
+      "[1], Ma {:.2f}".format(Ma))
 print("Doing up to {:.0e}".format(args["n_steps"]), " steps.")
 print("I will record every", nreport, "-th step, print every", ntest, "-th step. ",
       "1 step corresponds to {:.4f}".format(t_target / args["n_steps"]), "seconds.\nReports are in ", filename_base)
@@ -191,5 +214,8 @@ for k, v in c.items():
     output_file.write("type,size,bytes: {}, number: {}\n".format(k, v))
 output_file.write("\ntotal bytes for tensors:" + str(total_bytes))
 output_file.close()
+
+# redirect stdout to printing
+printing = sys.stdout
 
 # TODO: Append output to a csv file
