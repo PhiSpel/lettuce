@@ -142,7 +142,7 @@ if args["ignore_outputs"] is None:
         mlups = simulation.step(args["n_steps"])
         print("MLUPS: ", mlups)
 else:
-    args["ignore_outputs"] = min(args["ignore_outputs"], args["n_steps"])
+    args["ignore_outputs"] = int(min(args["ignore_outputs"], args["n_steps"]))
     simulation.reporters[1].interval = args["ignore_outputs"]
     simulation.step(args["ignore_outputs"])
     mlups = 0
