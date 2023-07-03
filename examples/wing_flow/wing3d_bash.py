@@ -38,7 +38,7 @@ parser.add_argument("--vchar", default=5, type=int,
                          "large wind turbines produce maximum power at 15 m/s. "
                          "This can be assumed to be streaming velocity around the centre")
 parser.add_argument("--wing_length", default=4, type=int, help="'depth' of airfoil profile")
-parser.add_argument("--logfile", default=None, type=int, help="logfile")
+parser.add_argument("--logfile", default=None, type=str, help="logfile")
 
 args = vars(parser.parse_args())
 
