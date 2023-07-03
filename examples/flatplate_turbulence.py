@@ -16,7 +16,7 @@ parser.add_argument("--outputname", default="flatplate", type=str, help="name ba
 args = vars(parser.parse_args())
 
 nx = 1000
-ny = 50
+ny = 100
 nz = 25
 Re = 2.5e5
 shape = (nx, ny, nz)
@@ -25,8 +25,8 @@ shape = (nx, ny, nz)
 domain_length_x = 20  # [m]
 Ma = 0.1
 nmax = 100000
-nreport = 500
-ntest = 5000
+nreport = 2000
+ntest = 10000
 filename_base = args["outputdir"] + args["outputname"]
 printing = sys.stdout
 
