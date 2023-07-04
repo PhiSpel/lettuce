@@ -7,6 +7,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import gc
 from collections import Counter
 import sys
+from liftdragcoefficient import LiftDragCoefficient
+import matplotlib.pyplot as plt
+import numpy as np
 
 #########################
 # ARGUMENT PARSING
@@ -39,6 +42,7 @@ parser.add_argument("--vchar", default=5, type=int,
                          "This can be assumed to be streaming velocity around the centre")
 parser.add_argument("--wing_length", default=4, type=int, help="'depth' of airfoil profile")
 parser.add_argument("--logfile", default=None, type=str, help="logfile")
+parser.add_argument("--liftdrag", default=0, type=bool, help="calculate lift and drag coefficients")
 
 args = vars(parser.parse_args())
 
@@ -116,6 +120,7 @@ nreport = args["nreport"]
 ntest = args["ntest"]
 
 flow = Naca(**args)
+
 tau = flow.units.relaxation_parameter_lu
 # collision operator
 collision_type = args["collision"]
@@ -144,6 +149,16 @@ energy = lt.IncompressibleKineticEnergy(flow.lattice, flow)
 # simulation.reporters.append(energy_reporter_internal)
 simulation.reporters.append(lt.ObservableReporter(energy, interval=ntest))  # print energy
 simulation.reporters.append(lt.VTKReporter(flow.lattice, flow, interval=nreport, filename_base=filename_base))
+# Observable reporter: drag coefficient
+if args["liftdrag"]:
+    #drag_filename = "./wing_data/liftdrag.txt"
+    #print("Lift and drag coefficients are in", drag_filename)
+    dragobservable = LiftDragCoefficient(flow.lattice, flow, simulation._boundaries[-1])  # ! area A=2*r is in PU and 1-dimensional in 2D
+    #dragfile = open(drag_filename, "a")
+    #dragfile.write("Lift and Drag reporters.\nT, Ekin, c_L, c_D")
+    dragreport = lt.ObservableReporter(dragobservable, out=None)
+    simulation.reporters.append(dragreport)
+
 
 # initialize simulation
 simulation.initialize_f_neq()
@@ -215,7 +230,18 @@ for k, v in c.items():
 output_file.write("\ntotal bytes for tensors:" + str(total_bytes))
 output_file.close()
 
+if args["liftdrag"]:
+    liftdrag_data = np.array(dragreport.out)
+    step = liftdrag_data[:, 0]
+    t_pu = liftdrag_data[:, 1]
+    lift = liftdrag_data[:, 2]
+    drag = liftdrag_data[:, 3]
+    plt.plot(lift)
+    plt.plot(drag)
+    plt.legend(["lift", "drag"])
+    plt.savefig(filename_base + "liftdrag.png")
+
 # redirect stdout to printing
-printing = sys.stdout
+sys.stdout = printing
 
 # TODO: Append output to a csv file

@@ -5,7 +5,7 @@ import numpy as np
 from scipy import interpolate
 import torch
 from pyevtk.hl import imageToVTK
-
+from liftdragcoefficient import FullwayBounceBackBoundary
 
 class Naca(Obstacle):
     def __init__(self, **args):
@@ -15,6 +15,7 @@ class Naca(Obstacle):
         self.Ma_pre = 0.1
         self.shape = args["shape"]
         self.wing_name = args["name"]
+        self.liftdrag = args["liftdrag"]
         self.args = args
 
         self.pre_p, self.pre_u = self.calculate_pre()
@@ -160,11 +161,15 @@ class Naca(Obstacle):
 
     @property
     def boundaries(self):
+        if self.liftdrag:
+            obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
+        else:
+            obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
         return [
             lt.EquilibriumBoundaryPU(
                 np.abs(self.grid[0]) < 1e-6, self.units.lattice, self.units,
                 self.units.characteristic_velocity_pu * self._unit_vector()
             ),
             lt.EquilibriumOutletP(self.units.lattice, self._unit_vector().tolist()),
-            lt.BounceBackBoundary(self.mask, self.units.lattice)
+            obstacle
         ]
