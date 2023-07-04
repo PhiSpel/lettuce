@@ -165,8 +165,7 @@ class EquilibriumOutletP(AntiBounceBackOutlet):
 
 
 class SlipBoundary:
-    """slips along x and z, bounces back along y
-    give direction as 0, 1, or 2
+    """bounces back along a direction given as 0, 1, or 2 for x, y, or z, respectively
     """
     def __init__(self, mask, lattice, direction):
         self.mask = lattice.convert_to_tensor(mask)

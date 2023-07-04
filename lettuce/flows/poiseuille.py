@@ -5,7 +5,7 @@ Poiseuille Flow
 import numpy as np
 
 from lettuce.unit import UnitConversion
-from lettuce.boundary import BounceBackBoundary
+from lettuce.boundary import BounceBackBoundary, SlipBoundary
 
 
 class PoiseuilleFlow2D(object):
@@ -56,3 +56,23 @@ class PoiseuilleFlow2D(object):
     @property
     def acceleration(self):
         return np.array([0.001, 0])
+
+
+class PoiseuilleFlow2DHalf(PoiseuilleFlow2D):
+    def __int__(self, resolution, reynolds_number, mach_number, lattice, initialize_with_zeros=True):
+        super(self).__init__(resolution, reynolds_number, mach_number, lattice, initialize_with_zeros)
+
+    @property
+    def grid(self):
+        x = np.linspace(0, 1, num=self.resolution + 1, endpoint=True)
+        y = np.linspace(0, 0.5, num=int(self.resolution*0.5+1), endpoint=True)
+        return np.meshgrid(x, y, indexing='ij')
+
+    @property
+    def boundaries(self):
+        mask_wall = np.zeros(self.grid[0].shape, dtype=bool)
+        mask_wall[:, 0] = True
+        mask_centre = np.zeros(self.grid[0].shape, dtype=bool)
+        mask_centre[:, -1] = True
+        return [BounceBackBoundary(mask=mask_wall, lattice=self.units.lattice),
+                SlipBoundary(mask=mask_centre, lattice=self.units.lattice, direction=1)]
