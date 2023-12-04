@@ -25,7 +25,7 @@ class Garden(lt.Obstacle):
             print("Using CUDA.")
             return lt.Lattice(lt.D2Q9, torch.device("cuda"), use_native=False)
 
-    def mask_flow(self, shape=(10000, 5000), debug=False, show=True, **args):
+    def mask_flow(self, shape=(10000, 5000), debug=False, show=False, **args):
         Re = args['Re']
         Ma = args['Ma']
         # read data
