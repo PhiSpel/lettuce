@@ -31,11 +31,11 @@ class Garden(lt.Obstacle):
         # read data
         nx, ny = shape
         if debug:
-            csv_data_np = np.genfromtxt('data/out_rough.csv', delimiter=', ', dtype=float)
+            csv_data_np = np.genfromtxt('data/out.csv', delimiter=', ', dtype=float)
             fig, ax = plt.subplots()
             ax.scatter(csv_data_np[:, 0], csv_data_np[:, 1])
             plt.show()
-        csv_data = pd.read_csv('data/out_rough.csv', names=['x', 'y'], dtype=float)
+        csv_data = pd.read_csv('data/out.csv', names=['x', 'y'], dtype=float)
         if debug:
             fig2, ax2 = plt.subplots()
             ax2.scatter(csv_data['x'], csv_data['y'])
