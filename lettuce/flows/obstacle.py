@@ -92,6 +92,10 @@ class Obstacle:
     def _unit_vector(self, i=0):
         return np.eye(self.units.lattice.D)[i]
 
+    @boundaries.setter
+    def boundaries(self, value):
+        self._boundaries = value
+
 
 def Obstacle2D(resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu):
     warnings.warn("Obstacle2D is deprecated. Use Obstacle instead", DeprecationWarning)
