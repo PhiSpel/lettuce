@@ -83,8 +83,8 @@ class Garden(lt.Obstacle):
 
     @property
     def boundaries(self):
-        # obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
-        obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
+        obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
+        # obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
         return [
             lt.EquilibriumBoundaryPU(  # inlet
                 (np.abs(self.grid[0]) < 1e-6) * (self.grid[1] > self.y0),
