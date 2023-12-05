@@ -11,6 +11,8 @@ from liftdragcoefficient import FullwayBounceBackBoundary
 
 class Garden(lt.Obstacle):
     def __init__(self, **args):
+        self.y0 = None
+        self.y1 = None
         self.args = args
         # LETTUCE PARAMETERS #
         self.lattice = self.get_lattice()
@@ -62,6 +64,8 @@ class Garden(lt.Obstacle):
 
         x, y = self.grid
         mask = (y < y_mapped)
+        self.y0 = y_mapped[0]
+        self.y1 = y_mapped[-1]
         if args["debug"]:
             fig4, ax4 = plt.subplots()
             ax4.scatter(x_interp, y_mapped)
@@ -79,17 +83,20 @@ class Garden(lt.Obstacle):
 
     @property
     def boundaries(self):
-        obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
-        # obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
+        # obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
+        obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
         return [
             lt.EquilibriumBoundaryPU(  # inlet
-                np.abs(self.grid[0]) < 1e-6, self.units.lattice, self.units,
-                self.units.characteristic_velocity_pu * self._unit_vector()
+                (np.abs(self.grid[0]) < 1e-6) * (self.grid[1] > self.y0),
+                self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
             ),
             lt.EquilibriumBoundaryPU(  # top
                 np.abs(self.grid[1]) >= (self.grid[1].max() - 1e-6), self.units.lattice, self.units,
                 self.units.characteristic_velocity_pu * self._unit_vector()
             ),
-            lt.EquilibriumOutletP(self.units.lattice, self._unit_vector().tolist()),
+            lt.EquilibriumBoundaryPU(  # out
+                (np.abs(self.grid[0]) >= (self.grid[0].max() - 1e-6)) * (self.grid[1] > self.y1),
+                self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
+            ),
             obstacle
         ]

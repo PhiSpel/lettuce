@@ -24,8 +24,8 @@ parser.add_argument("--ny", default=2000, type=int, help="lattice nodes in y-dir
 parser.add_argument("--nx", default=10000, type=int, help="lattice nodes in x-direction")
 
 args = vars(parser.parse_args())
-args["debug"] = True
-args["show"] = True
+args["debug"] = False
+args["show"] = False
 
 # test for convergence and crash
 test_iterations = True
