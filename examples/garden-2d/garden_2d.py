@@ -21,13 +21,11 @@ parser.add_argument("--Re", default=2000, type=float, help="Reynolds number, set
 parser.add_argument("--no_cuda", default=0, type=bool, help="Set False to use CPU instead of Cuda")
 parser.add_argument("--collision", default="kbc", help="collision operator (bgk, kbc, reg)")
 parser.add_argument("--ny", default=2000, type=int, help="lattice nodes in y-direction")
-parser.add_argument("--nx", default=9000, type=int, help="lattice nodes in x-direction")
+parser.add_argument("--nx", default=10000, type=int, help="lattice nodes in x-direction")
 
 args = vars(parser.parse_args())
-
-## DOMAIN ##
-ny = args["ny"]  # number of lattice nodes in y-direction
-nx = args["nx"]  # number of lattice nodes in x-direction
+args["debug"] = True
+args["show"] = True
 
 # test for convergence and crash
 test_iterations = True
@@ -47,10 +45,9 @@ def setup_simulation(**args):
     outputdir = args["outputdir"]
     Re = args["Re"]
 
-    file_name = 'garden_ny' + str(ny) + "_Re{:.1e}".format(args["Re"]) + '_Ma' + str(args["Ma"])
+    file_name = "garden_Re{:.1e}".format(args["Re"]) + '_Ma' + str(args["Ma"])
     args["filename_base"] = outputdir + file_name
-    shape = (nx, ny)
-    flow = Garden(shape, **args)
+    flow = Garden(**args)
     tau = flow.units.relaxation_parameter_lu
     # collision operator
     if args["collision"] == "kbc":
@@ -121,7 +118,7 @@ def run_n_plot(simulation, energy, **args):
     return
 
 
-run_name = 'garden_ny' + str(ny) + "_Re{:.1e}".format(args["Re"]) + "_Ma" + str(args["Ma"])
+run_name = "garden_Re{:.1e}".format(args["Re"]) + "_Ma" + str(args["Ma"])
 t = time()
 sim, ener, args["n_steps"] = setup_simulation(**args)
 run_n_plot(sim, ener, **args)
