@@ -1,7 +1,6 @@
 import lettuce as lt
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 
 """
 Lattice definitions.
@@ -9,7 +8,7 @@ Lattice definitions.
 The lattice is defined by the used stencil (mostly D2Q9, D3Q19, or D3Q27 - the more the expensivier).
 The lattice is stored on CPU (device="cpu") or GPU (device="cuda").
 """
-lattice = lt.Lattice(lt.D2Q9, device="cuda", dtype=torch.float32)
+lattice = lt.Lattice(lt.D2Q9, device="cuda")
 
 """
 Flow definitions.
@@ -36,10 +35,12 @@ To add a solid, we set some mask values to True by getting the domain extends fr
 For a circle, just use a boolean function. Otherwise, you may as well use the array indices.
 """
 x, y = flow.grid
-r = .1      # radius
-x_c = 0.5   # center along x
+r = .05      # radius
+x_c = 0.3   # center along x
 y_c = 0.5   # center along y
-flow.mask = ((x + x_c) ** 2 + (y + y_c) ** 2) < (r ** 2)
+flow.mask = ((x - x_c) ** 2 + (y - y_c) ** 2) < (r ** 2)
+plt.imshow(flow.mask)
+plt.show()
 
 """
 Collision definition.
@@ -79,7 +80,7 @@ Alternatively, the reporters can be drawn from the simulation.reporters list (se
 """
 
 u = flow.units.convert_velocity_to_pu(lattice.u(simulation.f)).cpu().numpy()
-u_norm = np.linalg.norm(u, axis=0)
+u_norm = np.linalg.norm(u, axis=0).transpose()
 plt.imshow(u_norm)
 plt.title('Velocity after simulation')
 plt.show()
