@@ -85,11 +85,18 @@ Installation
 ------------
 
 * Install the anaconda package manager from www.anaconda.org
-* Create a new conda environment and install all dependencies::
+* Create a new conda environment and activate it::
 
-    conda create -n lettuce -c pytorch -c conda-forge\
-         "pytorch>=1.2" matplotlib pytest click cudatoolkit "pyevtk>=1.2"  mmh3
+    conda create -n lettuce
+    conda activate lettuce
 
+* Follow the recommendations at https://pytorch.org/get-started/locally/ to install pytorch based on your GPU's CUDA version. For the latest versions (if supported by your GPU) use::
+
+    conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+
+* Install the remaining dependencies::
+
+    conda install -c pytorch -c conda-forge matplotlib pytest click cudatoolkit "pyevtk>=1.2"  mmh3 h5py
 
 * Activate the conda environment::
 
