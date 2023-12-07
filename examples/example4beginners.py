@@ -30,6 +30,18 @@ ly = 1
 flow = lt.Obstacle((nx, ny), reynolds_number=Re, mach_number=Ma, lattice=lattice, domain_length_x=ly)
 
 """
+Per default, lt.Obstacle has no solid. It is stored in flow.mask as a fully False numpy array.
+To add a solid, we set some mask values to True by getting the domain extends from flow.grid and creating a boolean array from it.
+
+For a circle, just use a boolean function. Otherwise, you may as well use the array indices.
+"""
+x, y = flow.grid
+r = .1      # radius
+x_c = 0.5   # center along x
+y_c = 0.5   # center along y
+flow.mask = ((x + x_c) ** 2 + (y + y_c) ** 2) < (r ** 2)
+
+"""
 Collision definition.
 
 The collision is usually BGK (low dissipation, but may be unstable) or KBC (higher dissipation, but generally stable).
@@ -47,15 +59,27 @@ simulation = lt.Simulation(flow=flow, lattice=lattice, collision=collision, stre
 """
 Reporters.
 
-Reporter objects may be used to extract information later on or during the simulation.
-They can be created as objects when required later (
+- Reporter objects are used to extract information later on or during the simulation.
+- They can be created as separate objects when required later (see example4convergence.py).
 """
-Energy = lt.IncompressibleKineticEnergy(lattice, flow)
-reporter = lt.ObservableReporter(Energy, interval=1000, out=None)
-simulation.reporters.append(reporter)
+energyreporter = lt.ObservableReporter(lt.IncompressibleKineticEnergy(lattice, flow), interval=1000, out=None)
+simulation.reporters.append(energyreporter)
 simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=100, filename_base="./output"))
 
+"""
+Currently, a 'uint8 condition tensor'-error is thrown. Ignore it :)
+"""
 simulation.initialize_f_neq()
 mlups = simulation.step(num_steps=10000)  # mlups can be read, but does not need to be
 print("Performance in MLUPS:", mlups)
 
+"""
+Before or after simulation.step, physical values can be extracted from the populations (simulation.f)
+Alternatively, the reporters can be drawn from the simulation.reporters list (see example4convergence.py)
+"""
+
+u = flow.units.convert_velocity_to_pu(lattice.u(simulation.f)).cpu().numpy()
+u_norm = np.linalg.norm(u, axis=0)
+plt.imshow(u_norm)
+plt.title('Velocity after simulation')
+plt.show()
