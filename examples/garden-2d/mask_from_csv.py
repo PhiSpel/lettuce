@@ -64,7 +64,7 @@ class Garden(lt.Obstacle):
 
         x, y = self.grid
         mask = (y < y_mapped)
-        self.y0 = y_mapped[0]
+        self.y0 = y_mapped[1]
         self.y1 = y_mapped[-1]
         if args["debug"]:
             fig4, ax4 = plt.subplots()
@@ -84,18 +84,19 @@ class Garden(lt.Obstacle):
     @property
     def boundaries(self):
         obstacle = FullwayBounceBackBoundary(self.mask, self.units.lattice)
+        x, y = self.grid
         # obstacle = lt.BounceBackBoundary(self.mask, self.units.lattice)
         return [
             lt.EquilibriumBoundaryPU(  # inlet
-                (np.abs(self.grid[0]) < 1e-6) * (self.grid[1] > self.y0),
+                (np.abs(x) < 1e-6) * (y > self.y0),
                 self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
             ),
             lt.EquilibriumBoundaryPU(  # top
-                np.abs(self.grid[1]) >= (self.grid[1].max() - 1e-6), self.units.lattice, self.units,
+                np.abs(y) >= (y.max() - 1e-6), self.units.lattice, self.units,
                 self.units.characteristic_velocity_pu * self._unit_vector()
             ),
-            lt.EquilibriumBoundaryPU(  # out
-                (np.abs(self.grid[0]) >= (self.grid[0].max() - 1e-6)) * (self.grid[1] > self.y1),
+            lt.EquilibriumBoundaryPU(  # outlet
+                (np.abs(x) >= (x.max() - 1e-6)) * (y > self.y1),
                 self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
             ),
             obstacle
