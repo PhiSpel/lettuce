@@ -68,7 +68,7 @@ class AntiBounceBackOutlet:
         [0, -1, 0] is negative y-direction in 3D; [0, -1] for the same in 2D
         """
 
-    def __init__(self, lattice, direction):
+    def __init__(self, lattice, direction: int):
 
         assert isinstance(direction, list), \
             LettuceException(
@@ -83,11 +83,19 @@ class AntiBounceBackOutlet:
                 "Invalid direction parameter. "
                 f"Expected direction with all entries 0 except one 1 or -1 but got {direction}.")
 
-        direction = np.array(direction)
+        direction = torch.LongTensor(direction)
         self.lattice = lattice
 
         # select velocities to be bounced (the ones pointing in "direction")
-        self.velocities = np.concatenate(np.argwhere(np.matmul(self.lattice.stencil.e, direction) > 1 - 1e-6), axis=0)
+        # print(self.lattice.stencil.e)
+        # print(direction)
+        # print(torch.matmul(self.lattice.stencil.e, direction))
+        # print(torch.gt(torch.matmul(self.lattice.stencil.e, direction), 1 - 1e-6))
+        # self.velocities = torch.argwhere(torch.gt(torch.matmul(self.lattice.stencil.e, direction), 1 - 1e-6))
+        self.velocities = torch.squeeze(torch.gt(torch.matmul(self.lattice.stencil.e, direction), 1 - 1e-6).nonzero())
+        # print(self.velocities)
+        # direction = np.array(direction)
+        # self.velocities = np.concatenate(np.argwhere(np.matmul(self.lattice.stencil.e, direction) > 1 - 1e-6), axis=0)
 
         # build indices of u and f that determine the side of the domain
         self.index = []
@@ -116,7 +124,12 @@ class AntiBounceBackOutlet:
     def __call__(self, f):
         u = self.lattice.u(f)
         u_w = u[[slice(None)] + self.index] + 0.5 * (u[[slice(None)] + self.index] - u[[slice(None)] + self.neighbor])
-        f[[np.array(self.lattice.stencil.opposite)[self.velocities]] + self.index] = (
+        # print(self.dims)
+        # print(self.lattice.e)
+        # print(self.velocities)
+        # print(self.lattice.e[self.velocities])
+        # print(u_w)
+        f[[torch.tensor(self.lattice.stencil.opposite)[self.velocities]] + self.index] = (
                 - f[[self.velocities] + self.index] + self.w * self.lattice.rho(f)[[slice(None)] + self.index] *
                 (2 + torch.einsum(self.dims, self.lattice.e[self.velocities], u_w) ** 2 / self.lattice.cs ** 4
                  - (torch.norm(u_w, dim=0) / self.lattice.cs) ** 2)
@@ -125,7 +138,7 @@ class AntiBounceBackOutlet:
 
     def make_no_stream_mask(self, f_shape):
         no_stream_mask = torch.zeros(size=f_shape, dtype=torch.bool, device=self.lattice.device)
-        no_stream_mask[[np.array(self.lattice.stencil.opposite)[self.velocities]] + self.index] = 1
+        no_stream_mask[[torch.tensor(self.lattice.stencil.opposite)[self.velocities]] + self.index] = 1
         return no_stream_mask
 
     # not 100% sure about this. But collisions seem to stabilize the boundary.
