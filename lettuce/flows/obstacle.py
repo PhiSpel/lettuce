@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from lettuce.unit import UnitConversion
 from lettuce.util import append_axes
-from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet
+from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, EquilibriumOutletP, AntiBounceBackOutlet
 
 
 class Obstacle:
@@ -67,7 +67,9 @@ class Obstacle:
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = self.units.characteristic_velocity_pu * self._unit_vector()
         u_char = append_axes(u_char, self.units.lattice.D)
-        u = (1 - self.mask) * u_char
+        u = (1 - self.mask) * u_char * 0
+        # p = np.zeros_like(x[0], dtype=float)[None, ...]
+        # u = np.zeros_like(x[0], dtype=float)
         return p, u
 
     @property
@@ -83,12 +85,16 @@ class Obstacle:
                 np.abs(x) < 1e-6, self.units.lattice, self.units,
                 self.units.characteristic_velocity_pu * self._unit_vector()
             ),
-            AntiBounceBackOutlet(self.units.lattice, self._unit_vector().tolist()),
+            EquilibriumOutletP(self.units.lattice, self._unit_vector().tolist()),
             BounceBackBoundary(self.mask, self.units.lattice)
         ]
 
     def _unit_vector(self, i=0):
         return np.eye(self.units.lattice.D)[i]
+
+    @boundaries.setter
+    def boundaries(self, value):
+        self._boundaries = value
 
 
 def Obstacle2D(resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu):

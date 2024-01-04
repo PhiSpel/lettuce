@@ -1,5 +1,6 @@
 Makefile
 .idea/
+*/.idea/
 .gitattributes
 .editorconfig
 
@@ -108,3 +109,5 @@ ENV/
 
 # data folder
 data/
+wing_data/
+/examples/data_230612_162755_cylinder2D_example_test/*
