@@ -618,12 +618,12 @@ class InterpolatedBounceBackBoundary_compact_v2:
                                   - 2 * px * x_center - 2 * py * y_center - radius * radius) / (
                                          cx * cx + cy * cy)  # q
 
-                            d1 = - h1 + np.sqrt(h1 * h1 - h2)
-                            d2 = - h1 - np.sqrt(h1 * h1 - h2)
+                            d1 = - h1 + torch.sqrt(h1 * h1 - h2)
+                            d2 = - h1 - torch.sqrt(h1 * h1 - h2)
 
                             # distance from fluid node to the "true" boundary location
                             # choose correct d and assign d and f_index
-                            if d1 <= 1 and np.isreal(d1):  # d should be between 0 and 1
+                            if d1 <= 1 and torch.isreal(d1):  # d should be between 0 and 1
 
                                 if d1 <= 0.5:
                                     self.d_lt.append(d1)
@@ -636,7 +636,7 @@ class InterpolatedBounceBackBoundary_compact_v2:
                                                             a[p] + self.lattice.stencil.e[i, 0] - border[0] * nx,
                                                             b[p] + self.lattice.stencil.e[i, 1] - border[1] * ny])
 
-                            elif d2 <= 1 and np.isreal(d2):  # d should be between 0 and 1
+                            elif d2 <= 1 and torch.isreal(d2):  # d should be between 0 and 1
 
                                 if d2 <= 0.5:
                                     self.d_lt.append(d2)
@@ -745,14 +745,14 @@ class InterpolatedBounceBackBoundary_compact_v2:
                         pass  # just ignore this iteration since there is no neighbor there
 
         # convert relevant tensors:
-        self.f_index_lt = torch.tensor(np.array(self.f_index_lt), device=self.lattice.device,
-                                       dtype=torch.int64)  # the batch-index has to be integer
-        self.f_index_gt = torch.tensor(np.array(self.f_index_gt), device=self.lattice.device,
-                                       dtype=torch.int64)  # the batch-index has to be integer
-        self.d_lt = self.lattice.convert_to_tensor(np.array(self.d_lt))
-        self.d_gt = self.lattice.convert_to_tensor(np.array(self.d_gt))
+        self.f_index_lt = torch.tensor(self.f_index_lt, device=self.lattice.device,
+                                       dtype=torch.int32)  # the batch-index has to be integer
+        self.f_index_gt = torch.tensor(self.f_index_gt, device=self.lattice.device,
+                                       dtype=torch.int32)  # the batch-index has to be integer
+        self.d_lt = self.lattice.convert_to_tensor(torch.tensor(self.d_lt))
+        self.d_gt = self.lattice.convert_to_tensor(torch.tensor(self.d_gt))
         self.opposite_tensor = torch.tensor(self.lattice.stencil.opposite, device=self.lattice.device,
-                                            dtype=torch.int64)  # batch-index has to be a tensor
+                                            dtype=torch.int32)  # batch-index has to be a tensor
 
         f_collided_lt = torch.zeros_like(self.d_lt)  # float-tensor with number of (x_b nodes with d<=0.5) values
         f_collided_gt = torch.zeros_like(self.d_gt)  # float-tensor with number of (x_b nodes with d>0.5) values
@@ -1795,6 +1795,7 @@ class HalfwayBounceBackBoundary_compact_v3:
 
 
 class EquilibriumBoundaryPU:
+    # TODO: Make EQ BC compact
     """Sets distributions on this boundary to equilibrium with predefined velocity and pressure.
     Note that this behavior is generally not compatible with the Navier-Stokes equations.
     This boundary condition should only be used if no better options are available.

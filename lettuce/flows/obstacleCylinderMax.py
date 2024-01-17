@@ -6,7 +6,6 @@ from lettuce.boundary import EquilibriumBoundaryPU, \
     InterpolatedBounceBackBoundary, InterpolatedBounceBackBoundary_compact_v1, InterpolatedBounceBackBoundary_compact_v2, \
     SlipBoundary, FullwayBounceBackBoundary_compact, HalfwayBounceBackBoundary_compact_v1, HalfwayBounceBackBoundary_compact_v2, \
     HalfwayBounceBackBoundary_compact_v3
-import torch
 
 
 class ObstacleCylinder:
@@ -32,8 +31,9 @@ class ObstacleCylinder:
         <to fill>
         ----------
     """
-    def __init__(self, shape, reynolds_number, mach_number, lattice, char_length_pu=10, char_length_lu=10, char_velocity_pu=1,
-                 lateral_walls=None, bc_type='ibb1c2', perturb_init=False, u_init=0, x_offset=0, y_offset=0):
+    def __init__(self, shape, reynolds_number, mach_number, lattice, char_length_pu, char_length_lu, char_velocity_pu=1,
+                 lateral_walls='periodic', bc_type='fwbb', perturb_init=True, u_init=0,
+                 x_offset=0, y_offset=0):
         # shape of the domain (2D or 3D):
         if len(shape) != lattice.D:
             raise ValueError(f"{lattice.D}-dimensional lattice requires {lattice.D}-dimensional `shape`")
@@ -62,14 +62,11 @@ class ObstacleCylinder:
         self.lateral_walls = lateral_walls  # toggle: lateral walls to be bounce back (bounceback), slip wall (slip) or periodic (periodic)
         self.bc_type = bc_type  # toggle: bounce back algorithm: halfway (hwbb) or fullway (fwbb)
 
-        x, y = self.grid
-
         # initialize masks (init with zeros)
-        self.solid_mask = torch.zeros(self.shape, dtype=torch.bool)  # marks all solid nodes (obstacle, walls, ...)
-        self.in_mask = torch.zeros(x.shape, dtype=torch.bool)  # marks all inlet nodes
-        self.out_mask = torch.zeros(x.shape, dtype=torch.bool)  # marks all outlet nodes
-        # self.wall_mask = torch.zeros_like(self.solid_mask)  # marks lateral (top+bottom) walls
-        self._obstacle_mask = torch.zeros_like(self.solid_mask)  # marks all obstacle nodes (for fluid-solid-force_calc.)
+        self.solid_mask = np.zeros(shape=self.shape, dtype=bool)  # marks all solid nodes (obstacle, walls, ...)
+        self.in_mask = np.zeros(self.grid[0].shape, dtype=bool)  # marks all inlet nodes
+        self.wall_mask = np.zeros_like(self.solid_mask)  # marks lateral (top+bottom) walls
+        self._obstacle_mask = np.zeros_like(self.solid_mask)  # marks all obstacle nodes (for fluid-solid-force_calc.)
 
         # cylinder geometry in LU (1-based indexing!)
         self.x_offset = x_offset
@@ -78,48 +75,86 @@ class ObstacleCylinder:
         self.y_pos = self.shape[1] / 2 + 0.5 + self.y_offset  # y_position of cylinder-center in 1-based indexing
         self.x_pos = self.y_pos + self.x_offset  # keep symmetry of cylinder in x and y direction
 
-        xyz = tuple(torch.linspace(1, n, n) for n in self.shape)  # Tupel of index-lists (1-n (one-based!))
+        xyz = tuple(np.linspace(1, n, n) for n in self.shape)  # Tupel of index-lists (1-n (one-based!))
         if self.units.lattice.D == 2:
-            x_lu, y_lu = torch.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y-index
+            x_lu, y_lu = np.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y-index
         elif self.units.lattice.D == 3:
-            x_lu, y_lu, z_lu = torch.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y- and z-index
+            x_lu, y_lu, z_lu = np.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y- and z-index
         else:
-            raise ValueError("WARNING: something went wrong in LU-gird-index generation, lattice.D must be 2 or 3!")
+            print("WARNING: something went wrong in LU-gird-index generation, lattice.D must be 2 or 3!")
 
         condition = np.sqrt((x_lu - self.x_pos) ** 2 + (y_lu - self.y_pos) ** 2) < self.radius
-        self.obstacle_mask[torch.where(condition)] = 1
-        self.solid_mask[torch.where(condition)] = 1
+        self.obstacle_mask[np.where(condition)] = 1
+        self.solid_mask[np.where(condition)] = 1
 
         # indexing doesn't need z-Index for 3D, everything is broadcasted along z!
-        if self.lateral_walls == 'garden':
-            self.in_mask = (np.abs(x) < 1e-6) * (y > y_mapped[0])
-            self.out_mask = (np.abs(x) >= (x.max() - 1e-6)) * (y > self.y_mapped[-1])
+        if self.lateral_walls == 'bounceback' or self.lateral_walls == 'slip':  # if top and bottom are link-based BC
+            self.wall_mask[:, [0, -1]] = True  # don't mark wall nodes as inlet
+            self.solid_mask[np.where(self.wall_mask)] = 1  # mark solid walls
+            self.in_mask[0, 1:-1] = True  # inlet on the left, except for top and bottom wall (y=0, y=y_max)
         else:  # if lateral_wals == 'periodic', no walls
             self.in_mask[0, :] = True  # inlet on the left (x=0)
-            self.out_mask[-1, :] = True  # outlet on the right (x=xmax)
 
-    def initial_solution(self, x: torch.Tensor):
-        p = torch.zeros_like(x[0], dtype=torch.float)[None, ...]
+        # generate parabolic velocity profile for inlet BC if lateral_walls (top and bottom) are bounce back walls (== channel-flow)
+        self.u_inlet = self.units.characteristic_velocity_pu * self._unit_vector()  # u = [ux,uy,uz] = [1,0,0] in PU // uniform cahracteristic velocity in x-direction
+        if self.lateral_walls == 'bounceback':
+            ## parabolic velocity profile, zeroing on the edges
+            ## How to parabola:
+            ## 1.parabola in factoriezed form (GER: "Nullstellenform"): y = (x-x1)*(x-x2)
+            ## 2.parabola with a maximum and zero at x1=0 und x2=x0: y=-x*(x-x0)
+            ## 3.scale parabola, to make y_s(x_s)=1 the maximum: y=-x*(x-x0)*(1/(x0/2)²)
+            ## (4. optional) scale amplitude with 1.5 to have a mean velocity of 1, also making the integral of a homogeneous velocity profile with u=1 and the parabolic profile being equal
+            (nx, ny, nz) = self.shape  # number of gridpoints in y direction
+            parabola_y = np.zeros((1, ny))
+            y_coordinates = np.linspace(0, ny,
+                                        ny)  # linspace() creates n points between 0 and ny, including 0 and ny:
+            # top and bottom velocity values will be zero to agree with wall-boundary-condition
+            parabola_y[:, 1:-1] = - 1.5 * np.array(self.u_inlet).max() * y_coordinates[1:-1] * (
+                        y_coordinates[1:-1] - ny) * 1 / (ny / 2) ** 2  # parabolic velocity profile
+            # scale with 1.5 to achieve a mean velocity of u_char! -> DIFFERENT FROM cylinder2D and cylinder3D (!)
+            if self.units.lattice.D == 2:
+                # in 2D u1 needs Dimension 1 x ny (!)
+                velocity_y = np.zeros_like(parabola_y)  # y-velocities = 0
+                self.u_inlet = np.stack([parabola_y, velocity_y], axis=0)  # stack/pack u-field
+            elif self.units.lattice.D == 3:
+                ones_z = np.ones(nz)
+                parabola_yz = parabola_y[:, :, np.newaxis] * ones_z
+                parabola_yz_zeros = np.zeros_like(parabola_yz)
+                # create u_xyz inlet yz-plane:
+                self.u_inlet = np.stack([parabola_yz, parabola_yz_zeros, parabola_yz_zeros], axis=0)  # stack/pack u-field
+
+    @property
+    def obstacle_mask(self):
+        return self._obstacle_mask
+
+    @obstacle_mask.setter
+    def obstacle_mask(self, m):
+        assert isinstance(m, np.ndarray) and m.shape == self.shape
+        self._obstacle_mask = m.astype(bool)
+        # self.solid_mask[np.where(self._obstacle_mask)] = 1  # (!) this line is not doing what it should! solid_mask is now defined in the initial solution (see below)!
+
+    def initial_solution(self, x):
+        p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_max_pu = self.units.characteristic_velocity_pu * self._unit_vector()
         u_max_pu = append_axes(u_max_pu, self.units.lattice.D)
-        self.solid_mask[torch.where(self.obstacle_mask)] = 1  # This line is needed, because the obstacle_mask.setter does not define the solid_mask properly (see above) #OLD
+        self.solid_mask[np.where(self.obstacle_mask)] = 1  # This line is needed, because the obstacle_mask.setter does not define the solid_mask properly (see above) #OLD
         ### initial velocity field: "u_init"-parameter
         # 0: uniform u=0
         # 1: uniform u=1 or parabolic (depends on lateral_walls -> bounceback => parabolic; slip, periodic => uniform)
-        u = ~self.solid_mask * u_max_pu
+        u = (1 - self.solid_mask) * u_max_pu
         if self.u_init == 0:
             u = u * 0  # uniform u=0
         else:
             if self.lateral_walls == 'bounceback':  # parabolic along y, uniform along x and z (similar to poiseuille-flow)
                 ny = self.shape[1]  # number of gridpoints in y direction
-                ux_factor = torch.zeros(ny)  # vector for one column (u(x=0))
+                ux_factor = np.zeros(ny)  # vector for one column (u(x=0))
                 # multiply parabolic profile with every column of the velocity field:
-                y_coordinates = torch.linspace(0, ny, ny)
+                y_coordinates = np.linspace(0, ny, ny)
                 ux_factor[1:-1] = - y_coordinates[1:-1] * (y_coordinates[1:-1] - ny) * 1 / (ny / 2) ** 2
                 if self.units.lattice.D == 2:
-                    u = torch.einsum('k,ijk->ijk', ux_factor, u)
+                    u = np.einsum('k,ijk->ijk', ux_factor, u)
                 elif self.units.lattice.D == 3:
-                    u = torch.einsum('k,ijkl->ijkl', ux_factor, u)
+                    u = np.einsum('k,ijkl->ijkl', ux_factor, u)
             else:  # lateral_walls == periodic or slip
                 # initiale velocity u_PU=1 on every fluid node
                 u = (1 - self.solid_mask) * u_max_pu
@@ -159,44 +194,42 @@ class ObstacleCylinder:
         return p, u
 
     @property
-    def obstacle_mask(self):
-        return self._obstacle_mask
-
-    @obstacle_mask.setter
-    def obstacle_mask(self, m):
-        assert isinstance(m, np.ndarray) and m.shape == self.shape
-        self._obstacle_mask = m.astype(bool)
-        # self.solid_mask[np.where(self._obstacle_mask)] = 1  # (!) this line is not doing what it should! solid_mask is now defined in the initial solution (see below)!
-
-    @property
     def grid(self):
         # THIS IS NOT USED AT THE MOMENT. QUESTION: SHOULD THIS BE ONE- OR ZERO-BASED? Indexing or "node-number"?
-        xyz = tuple(self.units.convert_length_to_pu(torch.linspace(0, n, n)) for n in self.shape)  # tuple of lists of x,y,(z)-values/indices
-        return torch.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y- (und z-)values/indices
+        xyz = tuple(self.units.convert_length_to_pu(np.linspace(0, n, n)) for n in self.shape)  # tuple of lists of x,y,(z)-values/indices
+        return np.meshgrid(*xyz, indexing='ij')  # meshgrid of x-, y- (und z-)values/indices
 
     @property
     def boundaries(self):
         # inlet ("left side", x[0],y[1:-1], z[:])
-        inlet_boundary = EquilibriumBoundaryPU(  # inlet
+        inlet_boundary = EquilibriumBoundaryPU(
             self.in_mask,
-            self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
-        )
+            self.units.lattice, self.units,
+            # self.units.characteristic_velocity_pu * self._unit_vector())
+            self.u_inlet)  # works with a 1 x D vector or an ny x D vector thanks to einsum-magic in EquilibriumBoundaryPU
 
-        # # outlet ("right side", x[-1],y[:], (z[:]))
-        # if self.units.lattice.D == 2:
-        #     outlet_boundary = EquilibriumOutletP(self.units.lattice, [1, 0])  # outlet in positive x-direction
-        # else: # self.units.lattice.D == 3:
-        #     outlet_boundary = EquilibriumOutletP(self.units.lattice, [1, 0, 0])  # outlet in positive x-direction
+        # lateral walls ("top and bottom walls", x[:], y[0,-1], z[:])
+        lateral_boundary = None  # stays None if lateral_walls == 'periodic'
+        if self.lateral_walls == 'bounceback':
+            if self.bc_type == 'hwbb' or self.bc_type == 'HWBB':  # use halfway bounce back
+                lateral_boundary = HalfwayBounceBackBoundary(self.wall_mask, self.units.lattice)
+            else:  # else use fullway bounce back
+                lateral_boundary = FullwayBounceBackBoundary(self.wall_mask, self.units.lattice)
+        elif self.lateral_walls == 'slip' or self.bc_type == 'SLIP':  # use slip-walöl (symmetry boundary)
+            lateral_boundary = SlipBoundary(self.wall_mask, self.units.lattice, 1)  # slip on x(z)-plane
 
-        outlet_boundary = EquilibriumBoundaryPU(  # outlet
-                self.out_mask,
-                self.units.lattice, self.units, self.units.characteristic_velocity_pu * self._unit_vector()
-            )
+        # outlet ("right side", x[-1],y[:], (z[:]))
+        if self.units.lattice.D == 2:
+            outlet_boundary = EquilibriumOutletP(self.units.lattice, [1, 0])  # outlet in positive x-direction
+        else: # self.units.lattice.D == 3:
+            outlet_boundary = EquilibriumOutletP(self.units.lattice, [1, 0, 0])  # outlet in positive x-direction
 
         # obstacle (for example: obstacle "cylinder" with radius centered at position x_pos, y_pos) -> to be set via obstacle_mask.setter
         obstacle_boundary = None
         # (!) the obstacle_boundary should alway be the last boundary in the list of boundaries to correctly calculate forces on the obstacle
-        if self.bc_type == 'ibb1' or self.bc_type == 'IBB1':
+        if self.bc_type == 'hwbb' or self.bc_type == 'HWBB':
+            obstacle_boundary = HalfwayBounceBackBoundary(self.obstacle_mask, self.units.lattice)
+        elif self.bc_type == 'ibb1' or self.bc_type == 'IBB1':
             obstacle_boundary = InterpolatedBounceBackBoundary(self.obstacle_mask, self.units.lattice,
                                                                x_center=(self.shape[1] / 2 - 0.5),
                                                                y_center=(self.shape[1] / 2 - 0.5), radius=self.radius)
@@ -206,18 +239,33 @@ class ObstacleCylinder:
                                                                y_center=(self.shape[1] / 2 - 0.5), radius=self.radius)
         elif self.bc_type == 'ibb1c2':
             obstacle_boundary = InterpolatedBounceBackBoundary_compact_v2(self.obstacle_mask, self.units.lattice,
-                                                                      x_center=(self.shape[1] / 2 - 0.5),
-                                                                      y_center=(self.shape[1] / 2 - 0.5),
-                                                                      radius=self.radius)
-        else:
-            return ValueError("Invalid boundary")
+                                                                          x_center=(self.shape[1] / 2 - 0.5),
+                                                                          y_center=(self.shape[1] / 2 - 0.5),
+                                                                          radius=self.radius)
+        elif self.bc_type == 'fwbbc':
+            obstacle_boundary = FullwayBounceBackBoundary_compact(self.obstacle_mask, self.units.lattice)
+        elif self.bc_type == 'hwbbc1':
+            obstacle_boundary = HalfwayBounceBackBoundary_compact_v1(self.obstacle_mask, self.units.lattice)
+        elif self.bc_type == 'hwbbc2':
+            obstacle_boundary = HalfwayBounceBackBoundary_compact_v2(self.obstacle_mask, self.units.lattice)
+        elif self.bc_type == 'hwbbc3':
+            obstacle_boundary = HalfwayBounceBackBoundary_compact_v3(self.obstacle_mask, self.units.lattice)
+        else:  # use Fullway Bounce Back
+            obstacle_boundary = FullwayBounceBackBoundary(self.obstacle_mask, self.units.lattice)
 
-        return [
-            # TODO: add top boundary
-            inlet_boundary,
-            outlet_boundary,
-            obstacle_boundary
-        ]
+        if lateral_boundary is None:  # if lateral boundary is periodic...don't return a boundary-object
+            return [
+                inlet_boundary,
+                outlet_boundary,
+                obstacle_boundary
+            ]
+        else:
+            return [
+                inlet_boundary,
+                outlet_boundary,
+                lateral_boundary,
+                obstacle_boundary
+            ]
 
     def _unit_vector(self, i=0):
         return np.eye(self.units.lattice.D)[i]
