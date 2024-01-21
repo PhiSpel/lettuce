@@ -32,7 +32,7 @@ class ObstacleCylinder:
         <to fill>
         ----------
     """
-    def __init__(self, shape, reynolds_number, mach_number, lattice, char_length_pu=10, char_length_lu=10, char_velocity_pu=1,
+    def __init__(self, shape, reynolds_number, mach_number, lattice, char_length_pu, char_velocity_pu=1,
                  lateral_walls=None, bc_type='ibb1c2', perturb_init=False, u_init=0, x_offset=0, y_offset=0):
         # shape of the domain (2D or 3D):
         if len(shape) != lattice.D:
@@ -51,7 +51,7 @@ class ObstacleCylinder:
             lattice,
             reynolds_number=reynolds_number,
             mach_number=mach_number,
-            characteristic_length_lu=char_length_lu,
+            characteristic_length_lu=char_length_pu,  # TODO: change this to char_length_lu
             characteristic_length_pu=char_length_pu,
             characteristic_velocity_pu=char_velocity_pu  # reminder: u_char_lu = Ma * cs_lu = Ma * 1/sqrt(3)
         )
