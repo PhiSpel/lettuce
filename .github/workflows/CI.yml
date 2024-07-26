@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "master"
+      - "test-branch"
   pull_request:
     branches:
       - "master"
