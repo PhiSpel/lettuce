@@ -180,7 +180,9 @@ class SlipBoundary:
         self.opposite = []
         for opp_dir in opposite_stencil:
             self.opposite.append(np.where(np.array(e == opp_dir).all(axis=1))[0][0])
-        f = torch.where(self.mask, f[self.opposite], f)
+        # f_mirror = f[self.mask]
+        f_domain = f[self.mask[:, :, :+1]]
+        f = torch.where(self.mask, f_domain[self.opposite], f)
         return f
 
     def make_no_collision_mask(self, f_shape):
