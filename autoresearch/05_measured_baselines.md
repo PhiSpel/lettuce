@@ -42,6 +42,34 @@ Smoke test, CPU, fp64: TGV 32² × 200 steps = **0.05 MLUPS, 4.2 s wall**. This
 is slow (single-core, fp64, torch 2.0.1), and it is the number the runtime
 budget in §4 is based on.
 
+### 0b. The test suite, actually run
+
+```
+MKL_THREADING_LAYER=GNU python -m pytest tests -q
+400 passed, 884 skipped, 24 warnings in 68.16s
+```
+
+**No pre-existing failures.** This matters more than it sounds: an agent that
+opens a repository whose suite is already red cannot use "tests pass" as a
+signal, and a grader cannot distinguish damage from inherited breakage. Here the
+baseline is clean, and the whole suite runs in ~1 minute on CPU. Good.
+
+**But 884 of 1 284 tests — 69 % — are skipped on a CPU-only machine.** Almost
+all of them are CUDA or `cuda_native` variants of parametrised cases. The
+consequence for benchmark design: *"the test suite still passes" is very weak
+evidence that a submitted boundary condition is correct.* Roughly two thirds of
+the assertions never execute. The grader must carry its own acceptance test — it
+cannot delegate to `pytest`.
+
+Two warnings worth knowing about, both of which an agent will see and may chase:
+
+- `lettuce/util/moments.py:189` and `:246` emit
+  `ExperimentalWarning: I am not 100% sure if this equilibrium is correct.`
+- `lettuce/_simulation.py:70,73` emit the deprecated-`boundaries` warning during
+  `test_partiallysaturated_bc.py` — i.e. **an in-tree test still trips the
+  deprecation path**, which is exactly the `post_boundaries`-read-twice code at
+  lines 70 and 73 that breaks stateful boundary conditions (§6).
+
 ---
 
 ## 1. The test case
