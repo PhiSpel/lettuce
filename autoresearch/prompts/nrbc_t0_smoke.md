@@ -37,6 +37,9 @@ You need to know:
   use_native=False)`.
 - You do not need to write CUDA or C++: return `False` from
   `native_available()` and `pass` from `native_generator()`.
+- Register your boundary condition in your flow's `post_boundaries`, not
+  `pre_boundaries`. The `pre_boundaries` path is currently broken in the
+  framework and silently disables streaming.
 - Streaming is `torch.roll`, so the domain is periodic unless your
   `make_no_streaming_mask` blocks the roll for the populations you are setting.
   If that mask is wrong, your boundary silently does nothing.

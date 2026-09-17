@@ -16,7 +16,7 @@ their own model or prompts and get a number that means something.
 |---|---|---|
 | **feasible** | **yes** | A ~60-line prototype reaches `R_L2 = 0.0047` against a best-existing-BC baseline of `1.148`. Written and run, not estimated. |
 | **measurable** | **yes, but only with the right metric** | A full-trace `R_L2` against an oversized reference separates working from broken by 150–250× across six configs. The obvious alternative metric is silently gameable — see below. |
-| **replicable** | **yes, unusually so** | The entire grader runs in **~10 s on one CPU core**. No GPU, no overnight run. Pinning requirements in [`05`](05_measured_baselines.md) §5. |
+| **replicable** | **yes, unusually so** | The entire grader runs in **~10 s on one CPU core**, and reproduces **to every printed digit** across Python 3.11/torch 2.0.1 and Python 3.12/torch 2.8.0 ([`05`](05_measured_baselines.md) §0a). No GPU, no overnight run. |
 
 ## The finding that changes the design
 
@@ -66,6 +66,46 @@ So the question is not a synthetic exercise. It is an open defect with a
 disabled test sitting next to it, and a solution would be a real contribution to
 the project. That is worth stating when publishing: it is what separates this
 from a toy benchmark.
+
+## A blocker that must be fixed first
+
+The friction audit turned up a genuine bug in `lettuce`, which I reproduced
+independently ([`07`](07_confirmed_bug_pre_boundaries.md)):
+
+> **Registering a boundary condition in `pre_boundaries` silently disables
+> streaming.** With exactly one pre-boundary, `no_streaming_mask` is initialised
+> to `1` everywhere, so `_stream()` keeps the old populations at every node. The
+> simulation collides but never streams. With two or more, a boundary's genuine
+> no-streaming request is silently discarded instead.
+
+Measured: an identical acoustic pulse advances from node 100 to node 215 when
+the outlet is registered in `post_boundaries`, and does not move *at all* —
+amplitude bit-identical to the initial condition after 200 steps — when it is
+registered in `pre_boundaries`.
+
+It is latent because all nine shipped flows use `post_boundaries` only and no
+test touches the other path, so the suite is green. But `pre_boundaries` is the
+natural place to put a boundary applied before collision, and an agent that puts
+one there gets a stable, finite, plausible-looking, completely wrong answer. That
+is the worst failure mode a benchmark can have: it scores the model on a
+framework bug it cannot reasonably find. **Fix it, or the prompts must mandate
+`post_boundaries`** — they now do so explicitly.
+
+### The other friction worth knowing about
+
+From [`02`](02_agent_friction_audit.md), which built its own environment and
+verified most findings by execution:
+
+| finding | why it matters for a benchmark |
+|---|---|
+| `lt.Context(use_native=False)` silently selects `cuda:0` | The natural way to ask for "CPU, no codegen" fails much later with a traceback that never mentions `Context`. Prompts must pass the device explicitly. |
+| Bare `uv sync` installs an unimportable torch | `--extra cpu` is required and appears **only in CI**, never in the README. |
+| `Boundary`'s five abstract methods have **zero docstrings** | Undocumented contract: `__call__` must return a full-domain `f`; the two mask methods take differently-shaped `shape` arguments under the same parameter name. |
+| A second, competing boundary framework in `examples/advanced_projects/` | Newest code, best docstrings, a third boundary category — and it **does not import**. Prime misdirection. |
+| `lettuce/base.py` is dead v0.1 API | Never imported, but has the best docstrings in the repo for exactly the two methods an agent must stub out. A decoy in a file named `base.py`. |
+| 5 of 7 runnable examples fail or hang on CPU | Several carry copy-pasted advice that is actively wrong. |
+| Boundary tests are disabled or loosened to `rel=1e-2` | The subsystem being extended has its strictest tests off, so **the agent cannot calibrate against the suite.** The prompt must hand it a tolerance. |
+| 66 % of classes and 81 % of public functions undocumented | Every class in the extension path is undocumented. |
 
 ## Three changes to the original idea
 
@@ -135,8 +175,9 @@ the HPC angle.
 | [`02_agent_friction_audit.md`](02_agent_friction_audit.md) | what blocks or misleads an agent | partial |
 | [`03_codebase_strengths.md`](03_codebase_strengths.md) | what makes this a good substrate | **no** — analytic |
 | [`04_reusable_inventory.md`](04_reusable_inventory.md) | catalogue of reusable assets, and gaps | **no** — analytic |
-| [`05_measured_baselines.md`](05_measured_baselines.md) | **the experiments** — baselines, traps, prototype | **yes** |
+| [`05_measured_baselines.md`](05_measured_baselines.md) | **the experiments** — baselines, traps, prototype, test-suite state | **yes** |
 | [`06_robustness_sweep.md`](06_robustness_sweep.md) | metric stability across six configs | **yes** |
+| [`07_confirmed_bug_pre_boundaries.md`](07_confirmed_bug_pre_boundaries.md) | **a real bug in `lettuce`, reproduced** | **yes** |
 | [`prompts/`](prompts/) | four task prompts with grader notes | — |
 
 `01`, `03` and `04` were produced by agents that **could not import torch** and
@@ -146,18 +187,25 @@ by the measured 0.38 % gap.
 
 ## Recommended sequence
 
-1. **Fix the environment story first.** See [`02`](02_agent_friction_audit.md)
-   and [`05`](05_measured_baselines.md) §0. On this machine, no available
-   interpreter satisfies `requires-python = "==3.12.*"`, `uv` is absent, and the
-   one working environment needs `MKL_THREADING_LAYER=GNU` to start Python at
-   all. None of that is about the model being benchmarked, and all of it will be
-   charged to it.
-2. **Publish [`harness_build.md`](prompts/harness_build.md) first.** It is the
+1. **Fix the `pre_boundaries` bug** ([`07`](07_confirmed_bug_pre_boundaries.md)),
+   or make `post_boundaries` mandatory in every prompt.
+2. **Document the working install command.** `uv sync --extra cpu` produces a
+   correct CPU environment (Python 3.12, torch 2.8.0+cpu) — but `--extra cpu`
+   appears only in CI, and a bare `uv sync` yields a torch that cannot be
+   imported. Three other install commands in the README do not give a CPU
+   development path. None of this is about the model being benchmarked, and all
+   of it will be charged to it. See [`02`](02_agent_friction_audit.md) §1.1 and
+   [`05`](05_measured_baselines.md) §0.
+3. **Also fix `Context`'s device default** — `lt.Context(use_native=False)`
+   silently selects `cuda:0` and fails much later with a traceback that never
+   mentions `Context`. The prompts work around this by passing the device
+   explicitly.
+4. **Publish [`harness_build.md`](prompts/harness_build.md) first.** It is the
    cheapest to grade and it validates the grading infrastructure before any
    physics is at stake.
-3. **Then [`nrbc_t1_acoustic.md`](prompts/nrbc_t1_acoustic.md)**, the flagship —
+5. **Then [`nrbc_t1_acoustic.md`](prompts/nrbc_t1_acoustic.md)**, the flagship —
    fully measured, thresholds calibrated, ~10 s to grade.
-4. **Calibrate [`nrbc_t2_2d.md`](prompts/nrbc_t2_2d.md) before publishing it.**
+6. **Calibrate [`nrbc_t2_2d.md`](prompts/nrbc_t2_2d.md) before publishing it.**
    Its thresholds are extrapolated from 1-D and its reference-domain cost is not
    yet measured; at the observed ~0.05 MLUPS a `1024²` reference may be too slow
    to be practical.
@@ -168,8 +216,8 @@ by the measured 0.38 % gap.
   untested; the 2-D tier is a design, not a result.
 - **One prototype from one method family.** Convective extrapolation works;
   characteristic schemes and sponge layers are untried here.
-- **Wrong Python.** Measurements are on Python 3.11.3 / torch 2.0.1, against a
-  declared target of 3.12.
+- ~~Wrong Python.~~ **Resolved** — re-run on Python 3.12.14 / torch 2.8.0+cpu
+  with identical results ([`05`](05_measured_baselines.md) §0a).
 - **Contamination is unaddressed.** `lettuce` is public on GitHub and the NRBC
   literature is public in closed form. The mitigation is to grade only on the
   held-out metric and never on which method was chosen — but a model that has

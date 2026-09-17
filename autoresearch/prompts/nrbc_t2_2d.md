@@ -87,6 +87,9 @@ acoustic absorber, not a non-reflecting outlet.
   use_native=False)`. A bare `lt.Context()` selects CUDA and native codegen.
 - No CUDA or C++ required: `native_available() → False`,
   `native_generator() → pass`.
+- **Register your boundary condition in your flow's `post_boundaries`, not
+  `pre_boundaries`.** The `pre_boundaries` path is currently broken in the
+  framework and silently disables streaming. This is not part of the task.
 - Streaming is `torch.roll`; the domain is periodic unless
   `make_no_streaming_mask` blocks it. A wrong mask means your boundary silently
   does nothing.

@@ -98,6 +98,11 @@ do not have to discover them.
 - **You do not need to write any CUDA or C++.** Return `False` from
   `native_available()` and `pass` from `native_generator()`, as both existing
   outlets do.
+- **Register your boundary condition in your flow's `post_boundaries`, not
+  `pre_boundaries`.** The `pre_boundaries` path is currently broken in the
+  framework: with one pre-boundary the streaming step is disabled across the
+  whole domain and the simulation silently does nothing. This is not part of the
+  task.
 - **Streaming is `torch.roll`, so the domain is periodic by default**
   (`lettuce/_simulation.py`). A boundary condition only takes effect where
   `make_no_streaming_mask` blocks the roll. If you get that mask wrong your

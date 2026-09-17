@@ -64,6 +64,9 @@ told how to avoid them; recognising them is part of the task.
 
 - Pin the context: `lt.Context(torch.device('cpu'), dtype=torch.float64,
   use_native=False)`. A bare `lt.Context()` selects CUDA and native codegen.
+- Register boundary conditions in your flow's `post_boundaries`, not
+  `pre_boundaries`. The `pre_boundaries` path is currently broken in the
+  framework and silently disables streaming.
 - Streaming is `torch.roll`, so the domain is periodic by default; a boundary
   takes effect only where `make_no_streaming_mask` blocks the roll.
 - There is **no pressure-based observable** in `lettuce`. `Observable` /

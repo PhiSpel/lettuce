@@ -19,8 +19,15 @@ The default interpreter on this machine cannot run `lettuce`:
 | `uv` | **not installed** |
 | conda env `lettuce` | Python 3.11.3, torch 2.0.1, **CUDA not available** |
 
-The conda env `lettuce` works, but only after a workaround — bare invocation
-dies before reaching Python:
+**A correct environment is obtainable**, and this is the one to publish:
+installing `uv` and running `uv sync --extra cpu` downloads CPython 3.12 and
+`torch 2.8.0+cpu` and produces a working tree (verified: Python 3.12.14, torch
+2.8.0+cpu). The `--extra cpu` is essential and appears **only in CI**, never in
+the README — a bare `uv sync` installs a torch that cannot be imported
+(`ImportError: libcudnn.so.9`). See [`02`](02_agent_friction_audit.md) §1.1.
+
+The pre-existing conda env `lettuce` also works, but only after a workaround —
+bare invocation dies before reaching Python:
 
 ```
 symbol lookup error: .../libmkl_intel_thread.so.2: undefined symbol: __kmpc_global_thread_num
@@ -41,6 +48,32 @@ benchmarked. See §5.
 Smoke test, CPU, fp64: TGV 32² × 200 steps = **0.05 MLUPS, 4.2 s wall**. This
 is slow (single-core, fp64, torch 2.0.1), and it is the number the runtime
 budget in §4 is based on.
+
+### 0a. Cross-environment reproduction — the replicability evidence
+
+The whole experiment was run twice, on two unrelated stacks:
+
+| | env A | env B |
+|---|---|---|
+| Python | 3.11.3 (conda) | 3.12.14 (`uv sync --extra cpu`) |
+| torch | 2.0.1 | 2.8.0+cpu |
+| MKL workaround | required | not required |
+
+Results, identical to every digit printed:
+
+| BC | env A `R_L2` | env B `R_L2` |
+|---|---|---|
+| periodic | 1.1319 | 1.1319 |
+| `AntiBounceBackOutlet` | 1.1500 | 1.1500 |
+| `EquilibriumOutletP` | 1.1477 | 1.1477 |
+| Orlanski prototype | 0.0047 | 0.0047 |
+
+Reference peak (`4.308e-04`) and reference tail (`4.80e-10`) also match exactly.
+
+Two major-version torch releases apart, on different Python minor versions, in
+fp64 on CPU, the benchmark is bit-stable. **This is the strongest single piece
+of evidence for the "replicable" requirement**, and it means a published
+threshold will mean the same thing on someone else's machine.
 
 ### 0b. The test suite, actually run
 
